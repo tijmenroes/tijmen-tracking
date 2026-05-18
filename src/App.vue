@@ -1,14 +1,22 @@
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+  <div>
+    <nav v-if="authStore.isAuthenticated">
+      <RouterLink to="/">Home</RouterLink>
+      <button @click="handleSignOut">Sign out</button>
+    </nav>
+    <RouterView />
+  </div>
 </template>
 
 <script setup lang="ts">
-console.log(import.meta.env.VITE_SUPABASE_URL)
-console.log(import.meta.env.VITE_SUPABASE_ANON_KEY)
-</script>
+import { RouterView, RouterLink, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
-<style scoped></style>
+const authStore = useAuthStore()
+const router = useRouter()
+
+async function handleSignOut() {
+  await authStore.signOut()
+  router.push('/login')
+}
+</script>
