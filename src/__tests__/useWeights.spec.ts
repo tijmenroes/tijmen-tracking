@@ -8,6 +8,9 @@ const mockDelete = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
+    auth: {
+      getUser: vi.fn(() => Promise.resolve({ data: { user: { id: 'test-user-id' } } })),
+    },
     from: vi.fn(() => ({
       select: vi.fn(() => ({ order: mockSelect })),
       insert: vi.fn(() => ({ select: vi.fn(() => ({ single: mockInsert })) })),
@@ -48,7 +51,7 @@ describe('useWeights', () => {
     mockInsert.mockResolvedValue({ data: newEntry, error: null })
 
     const { weights, addWeight } = useWeights()
-    await addWeight(76, true)
+    await addWeight(76, '2024-01-02')
 
     expect(weights.value[0]).toEqual(newEntry)
   })

@@ -11,13 +11,13 @@
         placeholder="Enter weight"
         required
       />
-      <label>
-        <input v-model="newIsKg" type="checkbox" /> kg
-      </label>
+      <input v-model="newDate" type="date" required />
       <button type="submit" :disabled="loading">Add</button>
     </form>
 
     <p v-if="error">{{ error }}</p>
+
+    <WeightChart :weights="weights" />
 
     <p v-if="loading && weights.length === 0">Loading...</p>
 
@@ -26,13 +26,12 @@
         <tr>
           <th>Date</th>
           <th>Weight</th>
-          <th>Unit</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="entry in weights" :key="entry.id">
-          <td>{{ formatDate(entry.created_at) }}</td>
+          <td>{{ entry.date ? formatDate(entry.date) : '—' }}</td>
           <td>
             <template v-if="editingId === entry.id">
               <input v-model="editValue" type="number" step="0.1" min="0" />
@@ -41,7 +40,6 @@
               {{ entry.weight }}
             </template>
           </td>
-          <td>{{ entry.is_kg ? 'kg' : 'lbs' }}</td>
           <td>
             <template v-if="editingId === entry.id">
               <button @click="saveEdit(entry.id)">Save</button>
@@ -61,26 +59,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useWeights, type Weight } from '@/composables/useWeights'
+import WeightChart from '@/components/WeightChart.vue'
 
 const { weights, loading, error, fetchWeights, addWeight, updateWeight, deleteWeight } =
   useWeights()
 
 const newWeight = ref<number | null>(null)
-const newIsKg = ref(true)
+const newDate = ref(todayString())
 
 const editingId = ref<number | null>(null)
 const editValue = ref<number | null>(null)
 
 onMounted(fetchWeights)
 
+watch(
+  () => weights.value[0]?.weight,
+  (latest) => {
+    if (newWeight.value === null && latest != null) newWeight.value = latest
+  },
+)
+
 async function handleAdd() {
   if (newWeight.value === null) return
-  await addWeight(newWeight.value, newIsKg.value)
+  await addWeight(newWeight.value, newDate.value)
   if (!error.value) {
     newWeight.value = null
+    newDate.value = todayString()
   }
+}
+
+function todayString() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 function startEdit(entry: Weight) {

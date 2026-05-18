@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 export interface Weight {
   id: number
   created_at: string
+  date: string | null
   weight: number | null
   is_kg: boolean | null
 }
@@ -19,22 +20,23 @@ export function useWeights() {
     const { data, error: err } = await supabase
       .from('Weight')
       .select('*')
-      .order('created_at', { ascending: false })
+      .order('date', { ascending: false })
     if (err) error.value = err.message
     else weights.value = data ?? []
     loading.value = false
   }
 
-  async function addWeight(weight: number, isKg = true) {
+  async function addWeight(weight: number, date?: string) {
     error.value = null
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       error.value = 'Not authenticated'
       return
     }
+    const payload: Record<string, unknown> = { weight, is_kg: true, user_id: user.id, date: date ?? new Date().toISOString().slice(0, 10) }
     const { data, error: err } = await supabase
       .from('Weight')
-      .insert({ weight, is_kg: isKg, user_id: user.id })
+      .insert(payload)
       .select()
       .single()
     if (err) {
