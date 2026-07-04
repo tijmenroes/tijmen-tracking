@@ -1,0 +1,465 @@
+<template>
+  <div class="we-card">
+    <div class="we-card__header">
+      <div class="we-card__title-row">
+        <button class="we-card__name" @click="$emit('detail', workoutExercise)">
+          {{ workoutExercise.exercise?.name }}
+        </button>
+        <span class="we-card__badge" :class="`we-card__badge--${workoutExercise.exercise?.type}`">
+          {{ workoutExercise.exercise?.type === 'strength' ? 'Kracht' : 'Uithouding' }}
+        </span>
+      </div>
+      <button class="we-card__remove" title="Verwijder oefening" @click="$emit('remove', workoutExercise.id)">×</button>
+    </div>
+
+    <!-- Previous session reference -->
+    <div v-if="previousSets.length > 0" class="we-card__prev">
+      <div class="we-card__prev-label">Vorige keer</div>
+      <div v-for="s in previousSets" :key="s.id" class="we-card__prev-row">
+        <span class="we-card__set-num">{{ s.set_number }}</span>
+        <template v-if="workoutExercise.exercise?.type === 'strength'">
+          <span>{{ s.weight_kg ?? '—' }} kg</span>
+          <span>{{ s.reps ?? '—' }} reps</span>
+        </template>
+        <template v-else>
+          <span>{{ formatDuration(s.duration_seconds) }}</span>
+          <span v-if="s.distance_km != null">{{ s.distance_km }} km</span>
+        </template>
+      </div>
+    </div>
+
+    <!-- Current sets -->
+    <div class="we-card__sets">
+      <div v-if="sets.length === 0" class="we-card__sets-empty">Nog geen sets gelogd.</div>
+      <div v-for="(s, idx) in sets" :key="s.id" class="we-card__set-row">
+        <span class="we-card__set-num">{{ idx + 1 }}</span>
+
+        <template v-if="workoutExercise.exercise?.type === 'strength'">
+          <input
+            class="we-card__input"
+            type="number"
+            inputmode="decimal"
+            placeholder="kg"
+            :value="s.weight_kg ?? ''"
+            @change="updateSet(s.id, 'weight_kg', $event)"
+          >
+          <input
+            class="we-card__input"
+            type="number"
+            inputmode="numeric"
+            placeholder="reps"
+            :value="s.reps ?? ''"
+            @change="updateSet(s.id, 'reps', $event)"
+          >
+        </template>
+
+        <template v-else>
+          <input
+            class="we-card__input we-card__input--wide"
+            type="number"
+            inputmode="numeric"
+            placeholder="seconden"
+            :value="s.duration_seconds ?? ''"
+            @change="updateSet(s.id, 'duration_seconds', $event)"
+          >
+          <input
+            class="we-card__input"
+            type="number"
+            inputmode="decimal"
+            placeholder="km"
+            :value="s.distance_km ?? ''"
+            @change="updateSet(s.id, 'distance_km', $event)"
+          >
+        </template>
+
+        <button class="we-card__del" @click="handleDeleteSet(s.id)">−</button>
+      </div>
+    </div>
+
+    <button class="we-card__add-set" @click="handleAddSet">+ Set toevoegen</button>
+
+    <!-- Extra data accordion -->
+    <button class="we-card__accordion-toggle" @click="accordionOpen = !accordionOpen">
+      <span>{{ accordionOpen ? 'Verberg extra' : 'Extra notities & pijn' }}</span>
+      <span class="we-card__accordion-indicator" :class="{ 'we-card__accordion-indicator--open': accordionOpen }">›</span>
+    </button>
+
+    <div v-if="accordionOpen" class="we-card__accordion">
+      <div class="we-card__accordion-field">
+        <label class="we-card__accordion-label">Pijnniveau (1–10)</label>
+        <div class="we-card__pain-row">
+          <button
+            v-for="n in 10"
+            :key="n"
+            class="we-card__pain-btn"
+            :class="{ 'we-card__pain-btn--active': localPainScale === n }"
+            @click="setPainScale(n)"
+          >{{ n }}</button>
+          <button
+            v-if="localPainScale !== null"
+            class="we-card__pain-clear"
+            @click="setPainScale(null)"
+          >×</button>
+        </div>
+      </div>
+
+      <div class="we-card__accordion-field">
+        <label class="we-card__accordion-label">Notities</label>
+        <textarea
+          v-model="localNotes"
+          class="we-card__notes"
+          placeholder="Bijv. schouder voelde stijf, goede pomp..."
+          rows="3"
+          @blur="saveExtra"
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import type { WorkoutExercise, ExerciseSet } from '@/types/fitness'
+import { useExerciseSets } from '@/composables/useExerciseSets'
+
+const props = defineProps<{
+  workoutExercise: WorkoutExercise
+  workoutDate: string
+  onUpdateExtra: (id: number, payload: { notes?: string | null; pain_scale?: number | null }) => Promise<void>
+}>()
+
+defineEmits<{
+  (e: 'remove', id: number): void
+  (e: 'detail', we: WorkoutExercise): void
+}>()
+
+const { sets, previousSets, fetchSets, fetchPreviousSets, addSet, updateSet: updateSetData, deleteSet } = useExerciseSets()
+
+const accordionOpen = ref(false)
+const localNotes = ref<string>(props.workoutExercise.notes ?? '')
+const localPainScale = ref<number | null>(props.workoutExercise.pain_scale ?? null)
+
+onMounted(async () => {
+  await fetchSets(props.workoutExercise.id)
+  if (props.workoutExercise.exercise_id) {
+    await fetchPreviousSets(props.workoutExercise.exercise_id, props.workoutDate)
+  }
+})
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null) return '—'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
+async function handleAddSet() {
+  const nextNum = sets.value.length + 1
+  const prev = sets.value[sets.value.length - 1] as ExerciseSet | undefined
+  await addSet(props.workoutExercise.id, {
+    set_number: nextNum,
+    weight_kg: prev?.weight_kg ?? null,
+    reps: prev?.reps ?? null,
+    duration_seconds: prev?.duration_seconds ?? null,
+    distance_km: prev?.distance_km ?? null,
+  })
+}
+
+async function handleDeleteSet(id: number) {
+  await deleteSet(id)
+}
+
+function updateSet(id: number, field: string, event: Event) {
+  const raw = (event.target as HTMLInputElement).value
+  const num = raw === '' ? null : Number(raw)
+  updateSetData(id, { [field]: num })
+}
+
+async function setPainScale(n: number | null) {
+  localPainScale.value = n
+  await props.onUpdateExtra(props.workoutExercise.id, {
+    notes: localNotes.value || null,
+    pain_scale: n,
+  })
+}
+
+async function saveExtra() {
+  await props.onUpdateExtra(props.workoutExercise.id, {
+    notes: localNotes.value || null,
+    pain_scale: localPainScale.value,
+  })
+}
+</script>
+
+<style scoped>
+.we-card {
+  background: var(--color-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px 14px;
+}
+
+.we-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.we-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.we-card__name {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.we-card__badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.we-card__badge--strength {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.we-card__badge--endurance {
+  background: var(--color-down-soft);
+  color: var(--color-down);
+}
+
+.we-card__remove {
+  background: var(--color-chip);
+  border: none;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 17px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* Previous sets */
+.we-card__prev {
+  background: var(--color-card-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.we-card__prev-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-3);
+  margin-bottom: 6px;
+}
+
+.we-card__prev-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--color-text-2);
+  padding: 3px 0;
+}
+
+/* Current sets */
+.we-card__sets-empty {
+  font-size: 14px;
+  color: var(--color-text-3);
+  margin-bottom: 10px;
+}
+
+.we-card__set-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.we-card__set-num {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-3);
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.we-card__input {
+  flex: 1;
+  height: 38px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 10px;
+  background: var(--color-card-2);
+  padding: 0 10px;
+  font-size: 15px;
+  font-family: var(--font);
+  color: var(--color-text);
+  min-width: 0;
+}
+
+.we-card__input--wide {
+  flex: 2;
+}
+
+.we-card__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.we-card__del {
+  background: var(--color-up-soft);
+  border: none;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  color: var(--color-up);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.we-card__add-set {
+  width: 100%;
+  margin-top: 6px;
+  background: var(--color-primary-soft);
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+/* Accordion */
+.we-card__accordion-toggle {
+  width: 100%;
+  margin-top: 10px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-hairline);
+  padding: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-2);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font);
+}
+
+.we-card__accordion-indicator {
+  display: inline-block;
+  transition: transform 200ms;
+  font-size: 16px;
+}
+
+.we-card__accordion-indicator--open {
+  transform: rotate(90deg);
+}
+
+.we-card__accordion {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.we-card__accordion-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.we-card__accordion-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-3);
+}
+
+.we-card__pain-row {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.we-card__pain-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-hairline);
+  background: var(--color-card-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-2);
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.we-card__pain-btn--active {
+  background: var(--color-up-soft);
+  border-color: var(--color-up);
+  color: var(--color-up);
+}
+
+.we-card__pain-clear {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-chip);
+  font-size: 14px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.we-card__notes {
+  width: 100%;
+  border: 1px solid var(--color-hairline);
+  border-radius: 10px;
+  background: var(--color-card-2);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: var(--font);
+  color: var(--color-text);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.we-card__notes:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+</style>

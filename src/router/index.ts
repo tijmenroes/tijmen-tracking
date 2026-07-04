@@ -21,6 +21,48 @@ const router = createRouter({
       component: () => import('@/views/WeightView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/workout',
+      name: 'workout',
+      component: () => import('@/views/WorkoutView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/workout/session/:id',
+      name: 'workout-session',
+      component: () => import('@/views/WorkoutSessionView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/workout/export',
+      name: 'workout-export',
+      component: () => import('@/views/WorkoutExportView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/workout/history',
+      name: 'workout-history',
+      component: () => import('@/views/WorkoutHistoryView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/exercises',
+      name: 'exercises',
+      component: () => import('@/views/ExercisesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/exercises/:id/detail',
+      name: 'exercise-detail',
+      component: () => import('@/views/ExerciseDetailView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('@/views/ProfileView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

@@ -40,3 +40,10 @@ __screenshots__/
 
 test-results/
 playwright-report/
+
+.env
+checklist.txt
+
+# Capacitor — generated native project folders (add after `cap add ios/android`)
+# ios/
+# android/

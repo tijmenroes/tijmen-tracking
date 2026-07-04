@@ -1,0 +1,40 @@
+:root {
+  /* ── Brand ────────────────────────────────── */
+  --color-primary:              #7C3AED;
+  --color-primary-soft:         rgba(124, 58, 237, 0.10);
+  --color-primary-gradient-top: rgba(124, 58, 237, 0.32);
+  --color-primary-gradient-end: rgba(124, 58, 237, 0);
+
+  /* ── Surface ──────────────────────────────── */
+  --color-bg:     #F4F2F8;
+  --color-card:   #FFFFFF;
+  --color-card-2: #FAF9FC;
+  --color-chip:   rgba(14, 11, 26, 0.05);
+
+  /* ── Text ─────────────────────────────────── */
+  --color-text:   #0E0B1A;
+  --color-text-2: rgba(14, 11, 26, 0.58);
+  --color-text-3: rgba(14, 11, 26, 0.36);
+
+  /* ── Semantic ─────────────────────────────── */
+  --color-up:      #E25555;
+  --color-up-soft: rgba(226, 85, 85, 0.10);
+  --color-down:      #0EA371;
+  --color-down-soft: rgba(14, 163, 113, 0.10);
+
+  /* ── Structure ────────────────────────────── */
+  --color-hairline: rgba(14, 11, 26, 0.06);
+
+  /* ── Radii ────────────────────────────────── */
+  --radius-card:     22px;
+  --radius-sheet:    28px;
+  --radius-row-icon: 10px;
+
+  /* ── Shadows ──────────────────────────────── */
+  --shadow-card:        0 1px 2px rgba(14, 11, 26, 0.04), 0 8px 24px rgba(14, 11, 26, 0.04);
+  --shadow-fab:         0 8px 20px rgba(124, 58, 237, 0.45), 0 2px 6px rgba(124, 58, 237, 0.3);
+  --shadow-chip-active: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+
+  /* ── Typography ───────────────────────────── */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}

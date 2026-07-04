@@ -1,21 +1,21 @@
 <template>
-  <div style="position: relative; display: inline-flex; align-items: center;">
+  <div class="pw-wrap">
     <input
       :id="id"
       :type="visible ? 'text' : 'password'"
       :value="modelValue"
       :autocomplete="autocomplete"
       :required="required"
-      style="padding-right: 2rem;"
+      class="pw-wrap__input"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
     <button
       type="button"
-      style="position: absolute; right: 0.25rem; background: none; border: none; cursor: pointer; padding: 0 0.25rem; font-size: 0.75rem;"
-      :aria-label="visible ? 'Hide password' : 'Show password'"
+      class="pw-wrap__toggle"
+      :aria-label="visible ? 'Verberg wachtwoord' : 'Toon wachtwoord'"
       @click="visible = !visible"
     >
-      {{ visible ? 'Hide' : 'Show' }}
+      {{ visible ? 'Verberg' : 'Toon' }}
     </button>
   </div>
 </template>
@@ -37,3 +37,42 @@ defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const visible = ref(false)
 </script>
+
+<style scoped>
+.pw-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pw-wrap__input {
+  width: 100%;
+  height: 46px;
+  padding: 0 60px 0 14px;
+  background: var(--color-card-2);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  font-size: 15px;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 150ms;
+  font-family: inherit;
+}
+
+.pw-wrap__input:focus {
+  border-color: var(--color-primary);
+}
+
+.pw-wrap__toggle {
+  position: absolute;
+  right: 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-3);
+  padding: 0;
+  line-height: 1;
+}
+</style>
