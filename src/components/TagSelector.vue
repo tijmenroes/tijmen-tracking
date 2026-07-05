@@ -92,7 +92,7 @@ function emitCreate() {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 12px;
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   min-width: 0;

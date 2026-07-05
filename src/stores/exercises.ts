@@ -1,13 +1,22 @@
+import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Exercise, Tag } from '@/types/fitness'
 
-export function useExercises() {
+/**
+ * Central store for the exercise catalogue. Exercises are shared across the
+ * exercises screen, the template editor and the workout session, so the list is
+ * cached after the first fetch. Mutations keep the cache in sync in place, so no
+ * refetch is needed.
+ */
+export const useExercisesStore = defineStore('exercises', () => {
   const exercises = ref<Exercise[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const loaded = ref(false)
 
-  async function fetchExercises() {
+  async function fetchExercises(force = false) {
+    if (loaded.value && !force) return
     loading.value = true
     error.value = null
     const { data, error: err } = await supabase
@@ -17,6 +26,7 @@ export function useExercises() {
     loading.value = false
     if (err) { error.value = err.message; return }
     exercises.value = data ?? []
+    loaded.value = true
   }
 
   async function createExercise(name: string, type: Exercise['type'], tagIds: number[] = []) {
@@ -102,5 +112,5 @@ export function useExercises() {
     exercises.value = exercises.value.filter(e => e.id !== id)
   }
 
-  return { exercises, loading, error, fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise }
-}
+  return { exercises, loading, error, loaded, fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise }
+})

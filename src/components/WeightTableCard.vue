@@ -230,7 +230,7 @@ defineExpose({ editingId, editValue, startEdit })
 
 .table-row__edit-input {
   width: 72px;
-  font-size: 15px;
+  font-size: 16px;
   padding: 4px 8px;
   border: 1px solid var(--color-primary);
   border-radius: 8px;

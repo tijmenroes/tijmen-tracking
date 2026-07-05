@@ -9,7 +9,7 @@
       <button class="tedit__rename" type="button" title="Naam wijzigen" @click="openRename">✎</button>
     </div>
 
-    <div v-if="loading" class="tedit__muted">Laden…</div>
+    <div v-if="detailLoading" class="tedit__muted">Laden…</div>
     <div v-else-if="error" class="tedit__error">{{ error }}</div>
 
     <div v-else class="tedit__content">
@@ -72,11 +72,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import ExercisePicker from '@/components/ExercisePicker.vue'
 import BaseModal from '@/components/BaseModal.vue'
-import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
-import { useExercises } from '@/composables/useExercises'
+import { useTemplatesStore } from '@/stores/templates'
+import { useExercisesStore } from '@/stores/exercises'
 import { useTags } from '@/composables/useTags'
 import type { Exercise } from '@/types/fitness'
 
@@ -84,18 +85,18 @@ const router = useRouter()
 const route = useRoute()
 const templateId = computed(() => Number(route.params.id))
 
+const templatesStore = useTemplatesStore()
+const { template, templateExercises, detailLoading, error } = storeToRefs(templatesStore)
 const {
-  template,
-  templateExercises,
-  loading,
-  error,
   loadTemplate,
   renameTemplate,
   addExerciseToTemplate,
   removeExerciseFromTemplate,
   reorderTemplateExercises,
-} = useWorkoutTemplates()
-const { exercises, loading: exercisesLoading, fetchExercises } = useExercises()
+} = templatesStore
+const exercisesStore = useExercisesStore()
+const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
+const { fetchExercises } = exercisesStore
 const { tags, fetchTags } = useTags()
 
 const showPicker = ref(false)
@@ -345,7 +346,7 @@ async function onDragHandlePointerUp(event: PointerEvent) {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 12px;
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   box-sizing: border-box;

@@ -117,7 +117,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProfileStore } from '@/stores/profile'
-import { useExercises } from '@/composables/useExercises'
+import { useExercisesStore } from '@/stores/exercises'
 import { useTags } from '@/composables/useTags'
 import { filterExercises } from '@/utils/exerciseSearch'
 import TagSelector from '@/components/TagSelector.vue'
@@ -129,7 +129,9 @@ import type { Exercise } from '@/types/fitness'
 const router = useRouter()
 const profileStore = useProfileStore()
 const { isAdmin } = storeToRefs(profileStore)
-const { exercises, loading, error, fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise } = useExercises()
+const exercisesStore = useExercisesStore()
+const { exercises, loading, error } = storeToRefs(exercisesStore)
+const { fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise } = exercisesStore
 const { tags, fetchTags, createTag } = useTags()
 
 const newName = ref('')
@@ -266,7 +268,7 @@ async function handleSaveEdit() {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 12px;
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   min-width: 0;
@@ -284,7 +286,7 @@ async function handleSaveEdit() {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 8px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   min-width: 0;

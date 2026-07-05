@@ -11,7 +11,7 @@
     <div class="wtpl__content">
       <button class="wtpl__new" @click="showNewTemplate = true">+ Nieuwe template</button>
 
-      <div v-if="loading" class="wtpl__muted">Laden…</div>
+      <div v-if="listLoading && !loaded" class="wtpl__muted">Laden…</div>
       <div v-else-if="templates.length === 0" class="wtpl__muted">Nog geen templates.</div>
 
       <ul v-else class="wtpl__list">
@@ -58,12 +58,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import BaseModal from '@/components/BaseModal.vue'
-import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
+import { useTemplatesStore } from '@/stores/templates'
 
 const router = useRouter()
-const { templates, loading, fetchTemplates, createTemplate } = useWorkoutTemplates()
+const templatesStore = useTemplatesStore()
+const { templates, listLoading, loaded } = storeToRefs(templatesStore)
+const { fetchTemplates, createTemplate } = templatesStore
 
 const showNewTemplate = ref(false)
 const newTemplateName = ref('')
@@ -206,7 +209,7 @@ async function handleCreateTemplate() {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 12px;
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   box-sizing: border-box;

@@ -123,7 +123,7 @@ import { supabase } from '@/lib/supabase'
 import { useWorkouts } from '@/composables/useWorkouts'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import WorkoutEditModal from '@/components/WorkoutEditModal.vue'
-import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
+import { useTemplatesStore } from '@/stores/templates'
 import type { ExerciseSet, WorkoutExercise } from '@/types/fitness'
 
 interface ExerciseDetail {
@@ -134,7 +134,7 @@ interface ExerciseDetail {
 const router = useRouter()
 const route = useRoute()
 const { workout, workoutExercises, loading, error, loadWorkout, deleteWorkout, updateWorkout } = useWorkouts()
-const { createTemplateFromWorkout } = useWorkoutTemplates()
+const { createTemplateFromWorkout } = useTemplatesStore()
 
 const exerciseDetails = ref<ExerciseDetail[]>([])
 const showDeleteConfirm = ref(false)

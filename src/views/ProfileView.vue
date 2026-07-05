@@ -238,7 +238,7 @@ async function handleSave() {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   resize: vertical;

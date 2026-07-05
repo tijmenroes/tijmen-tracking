@@ -52,7 +52,7 @@
           </button>
         </div>
 
-        <div v-if="templatesLoading" class="wdash__muted">Laden…</div>
+        <div v-if="listLoading && !templatesLoaded" class="wdash__muted">Laden…</div>
         <div v-else-if="recentTemplates.length === 0" class="wdash__muted">
           Nog geen templates.
           <button class="wdash__inline-link" @click="showNewTemplate = true">Maak er een ›</button>
@@ -145,21 +145,24 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import BaseModal from '@/components/BaseModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
-import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
+import { useTemplatesStore } from '@/stores/templates'
 
 const router = useRouter()
 const { recentWorkouts, activeWorkout, loading, error, startWorkout, fetchRecentWorkouts, fetchActiveWorkout } = useWorkouts()
-const { recentTemplates, loading: templatesLoading, fetchRecentTemplates, createTemplate } = useWorkoutTemplates()
+const templatesStore = useTemplatesStore()
+const { recentTemplates, listLoading, loaded: templatesLoaded } = storeToRefs(templatesStore)
+const { fetchTemplates, createTemplate } = templatesStore
 
 const starting = ref(false)
 const showNewTemplate = ref(false)
 const newTemplateName = ref('')
 
 onMounted(async () => {
-  await Promise.all([fetchActiveWorkout(), fetchRecentWorkouts(), fetchRecentTemplates()])
+  await Promise.all([fetchActiveWorkout(), fetchRecentWorkouts(), fetchTemplates()])
 })
 
 async function handleStart() {

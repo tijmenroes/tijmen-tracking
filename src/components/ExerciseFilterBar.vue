@@ -30,7 +30,7 @@ const filterTagId = defineModel<number | null>('filterTagId', { default: null })
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 14px;
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   box-sizing: border-box;
@@ -50,7 +50,7 @@ const filterTagId = defineModel<number | null>('filterTagId', { default: null })
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 8px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
 }

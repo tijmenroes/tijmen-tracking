@@ -1,14 +1,27 @@
-import { ref } from 'vue'
+import { defineStore } from 'pinia'
+import { computed, ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { ExerciseSet, TemplateExercise, TemplateExerciseProgress, TemplateExerciseProgressRow, TemplateSummary, WorkoutSummary, WorkoutTemplate } from '@/types/fitness'
 
-export function useWorkoutTemplates() {
+const RECENT_LIMIT = 5
+
+/**
+ * Central store for workout templates. The summary list is user-specific and
+ * cached after the first fetch, so navigating between screens (e.g. the workout
+ * dashboard and "all templates") reuses it instead of refetching. Mutations that
+ * change list membership or exercise counts invalidate the cache so the next
+ * visit refetches.
+ */
+export const useTemplatesStore = defineStore('templates', () => {
   const templates = ref<TemplateSummary[]>([])
-  const recentTemplates = ref<TemplateSummary[]>([])
   const template = ref<WorkoutTemplate | null>(null)
   const templateExercises = ref<TemplateExercise[]>([])
-  const loading = ref(false)
+  const listLoading = ref(false)
+  const detailLoading = ref(false)
   const error = ref<string | null>(null)
+  const loaded = ref(false)
+
+  const recentTemplates = computed(() => templates.value.slice(0, RECENT_LIMIT))
 
   type SummaryRow = WorkoutTemplate & { template_exercises?: { count: number }[] }
 
@@ -19,53 +32,41 @@ export function useWorkoutTemplates() {
     }))
   }
 
-  async function fetchTemplates() {
-    loading.value = true
+  async function fetchTemplates(force = false) {
+    if (loaded.value && !force) return
+    listLoading.value = true
     error.value = null
     const { data: userData } = await supabase.auth.getUser()
     const user = userData.user
-    if (!user) { loading.value = false; return }
+    if (!user) { listLoading.value = false; return }
 
     const { data, error: err } = await supabase
       .from('workout_templates')
       .select('*, template_exercises(count)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-    loading.value = false
+    listLoading.value = false
     if (err) { error.value = err.message; return }
     templates.value = toSummaries((data ?? []) as SummaryRow[])
+    loaded.value = true
   }
 
-  async function fetchRecentTemplates(limit = 5) {
-    loading.value = true
-    error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) { loading.value = false; return }
-
-    const { data, error: err } = await supabase
-      .from('workout_templates')
-      .select('*, template_exercises(count)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    loading.value = false
-    if (err) { error.value = err.message; return }
-    recentTemplates.value = toSummaries((data ?? []) as SummaryRow[])
+  function invalidate() {
+    loaded.value = false
   }
 
   async function loadTemplate(id: number) {
-    loading.value = true
+    detailLoading.value = true
     error.value = null
     const { data, error: err } = await supabase
       .from('workout_templates')
       .select('*')
       .eq('id', id)
       .single()
-    if (err) { error.value = err.message; loading.value = false; return }
+    if (err) { error.value = err.message; detailLoading.value = false; return }
     template.value = data as WorkoutTemplate
     await fetchTemplateExercises()
-    loading.value = false
+    detailLoading.value = false
   }
 
   async function fetchTemplateExercises() {
@@ -91,6 +92,7 @@ export function useWorkoutTemplates() {
       .select()
       .single()
     if (err) { error.value = err.message; return null }
+    invalidate()
     return data as WorkoutTemplate
   }
 
@@ -116,6 +118,7 @@ export function useWorkoutTemplates() {
       })),
     )
     if (linkErr) { error.value = linkErr.message; return null }
+    invalidate()
     return created
   }
 
@@ -129,6 +132,7 @@ export function useWorkoutTemplates() {
       .single()
     if (err) { error.value = err.message; return null }
     if (template.value?.id === id) template.value = data as WorkoutTemplate
+    invalidate()
     return data as WorkoutTemplate
   }
 
@@ -139,6 +143,7 @@ export function useWorkoutTemplates() {
       template.value = null
       templateExercises.value = []
     }
+    invalidate()
   }
 
   async function addExerciseToTemplate(templateId: number, exerciseId: number) {
@@ -150,6 +155,7 @@ export function useWorkoutTemplates() {
       .single()
     if (err) { error.value = err.message; return null }
     templateExercises.value.push(data as TemplateExercise)
+    invalidate()
     return data as TemplateExercise
   }
 
@@ -160,6 +166,7 @@ export function useWorkoutTemplates() {
       .eq('id', templateExerciseId)
     if (err) { error.value = err.message; return }
     templateExercises.value = templateExercises.value.filter((te) => te.id !== templateExerciseId)
+    invalidate()
   }
 
   async function reorderTemplateExercises(fromIndex: number, toIndex: number) {
@@ -287,10 +294,12 @@ export function useWorkoutTemplates() {
     recentTemplates,
     template,
     templateExercises,
-    loading,
+    listLoading,
+    detailLoading,
     error,
+    loaded,
     fetchTemplates,
-    fetchRecentTemplates,
+    invalidate,
     loadTemplate,
     fetchTemplateExercises,
     createTemplate,
@@ -302,4 +311,4 @@ export function useWorkoutTemplates() {
     reorderTemplateExercises,
     fetchTemplateExerciseProgress,
   }
-}
+})

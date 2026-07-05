@@ -52,7 +52,7 @@ const visible = ref(false)
   background: var(--color-card-2);
   border: 1.5px solid transparent;
   border-radius: 12px;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--color-text);
   outline: none;
   transition: border-color 150ms;

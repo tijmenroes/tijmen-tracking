@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { mount, flushPromises } from '@vue/test-utils'
 import WorkoutDetailView from '@/views/WorkoutDetailView.vue'
 import type { ExerciseSet, Workout, WorkoutExercise } from '@/types/fitness'
@@ -97,6 +98,7 @@ vi.mock('@/composables/useWorkouts', () => ({
 
 describe('WorkoutDetailView', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
     workout.value = {
       id: 7,

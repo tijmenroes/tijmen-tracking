@@ -49,6 +49,8 @@
           <input
             class="we-card__input"
             type="number"
+            lang="en"
+            step="any"
             inputmode="decimal"
             placeholder="kg"
             :value="s.weight_kg ?? ''"
@@ -76,6 +78,8 @@
           <input
             class="we-card__input"
             type="number"
+            lang="en"
+            step="any"
             inputmode="decimal"
             placeholder="km"
             :value="s.distance_km ?? ''"
@@ -401,7 +405,7 @@ async function saveExtra() {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 0 10px;
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   min-width: 0;
@@ -538,7 +542,7 @@ async function saveExtra() {
   border-radius: 10px;
   background: var(--color-card-2);
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: var(--font);
   color: var(--color-text);
   resize: vertical;

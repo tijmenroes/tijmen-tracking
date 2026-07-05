@@ -85,23 +85,26 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import WorkoutExerciseCard from '@/components/WorkoutExerciseCard.vue'
 import ExercisePicker from '@/components/ExercisePicker.vue'
 import WorkoutEditModal from '@/components/WorkoutEditModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
-import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
-import { useExercises } from '@/composables/useExercises'
+import { useTemplatesStore } from '@/stores/templates'
+import { useExercisesStore } from '@/stores/exercises'
 import { useTags } from '@/composables/useTags'
 import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
 const route = useRoute()
 const { workout, workoutExercises, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
-const { exercises, loading: exercisesLoading, fetchExercises } = useExercises()
+const exercisesStore = useExercisesStore()
+const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
+const { fetchExercises } = exercisesStore
 const { tags, fetchTags } = useTags()
-const { createTemplateFromWorkout } = useWorkoutTemplates()
+const { createTemplateFromWorkout } = useTemplatesStore()
 
 const showPicker = ref(false)
 const showEditModal = ref(false)

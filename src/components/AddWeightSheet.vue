@@ -218,7 +218,7 @@ function todayString() {
 }
 
 .sheet__date-input {
-  font-size: 15px;
+  font-size: 16px;
   color: var(--color-text-2);
   background: transparent;
   border: none;

@@ -8,7 +8,7 @@
       </div>
     </div>
 
-    <div v-if="loading" class="tdetail__muted">Laden…</div>
+    <div v-if="detailLoading" class="tdetail__muted">Laden…</div>
     <div v-else-if="error" class="tdetail__error">{{ error }}</div>
 
     <div v-else class="tdetail__content">
@@ -84,9 +84,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
+import { useTemplatesStore } from '@/stores/templates'
 import { useWorkouts } from '@/composables/useWorkouts'
 
 import type { TemplateExerciseProgress } from '@/types/fitness'
@@ -95,15 +96,9 @@ const router = useRouter()
 const route = useRoute()
 const templateId = computed(() => Number(route.params.id))
 
-const {
-  template,
-  templateExercises,
-  loading,
-  error,
-  loadTemplate,
-  deleteTemplate,
-  fetchTemplateExerciseProgress,
-} = useWorkoutTemplates()
+const templatesStore = useTemplatesStore()
+const { template, templateExercises, detailLoading, error } = storeToRefs(templatesStore)
+const { loadTemplate, deleteTemplate, fetchTemplateExerciseProgress } = templatesStore
 const { templateWorkouts, startWorkout, fetchWorkoutsByTemplate } = useWorkouts()
 
 const starting = ref(false)

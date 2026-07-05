@@ -109,7 +109,7 @@ function todayString() {
   outline: none;
   border-radius: 14px;
   padding: 12px 14px;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--color-text-2);
   width: 50%;
   align-self: flex-end;

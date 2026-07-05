@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useExercises } from '@/composables/useExercises'
+import { createPinia, setActivePinia } from 'pinia'
+import { useExercisesStore } from '@/stores/exercises'
 
 const mockExercisesOrder = vi.fn()
 const mockExerciseInsertSingle = vi.fn()
@@ -37,22 +38,30 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
-describe('useExercises', () => {
+describe('exercises store', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('fetchExercises populates exercises (with nested tags)', async () => {
+  it('fetchExercises populates exercises (with nested tags) and caches', async () => {
     const mockData = [
       { id: 1, name: 'Squat', type: 'strength', notes: null, created_by: null, created_at: 'x', tags: [{ id: 3, name: 'legs', created_at: 'x' }] },
     ]
     mockExercisesOrder.mockResolvedValue({ data: mockData, error: null })
 
-    const { exercises, fetchExercises } = useExercises()
-    await fetchExercises()
+    const store = useExercisesStore()
+    await store.fetchExercises()
 
-    expect(exercises.value).toEqual(mockData)
-    expect(exercises.value[0]?.tags?.[0]?.name).toBe('legs')
+    expect(store.exercises).toEqual(mockData)
+    expect(store.exercises[0]?.tags?.[0]?.name).toBe('legs')
+    expect(store.loaded).toBe(true)
+
+    await store.fetchExercises()
+    expect(mockExercisesOrder).toHaveBeenCalledTimes(1)
+
+    await store.fetchExercises(true)
+    expect(mockExercisesOrder).toHaveBeenCalledTimes(2)
   })
 
   it('createExercise links tags and attaches resolved tag objects', async () => {
@@ -65,23 +74,23 @@ describe('useExercises', () => {
     mockExerciseTagsInsert.mockResolvedValue({ error: null })
     mockTagsIn.mockResolvedValue({ data: tagRows, error: null })
 
-    const { exercises, createExercise } = useExercises()
-    const result = await createExercise('Deadlift', 'strength', [1, 2])
+    const store = useExercisesStore()
+    const result = await store.createExercise('Deadlift', 'strength', [1, 2])
 
     expect(mockExerciseTagsInsert).toHaveBeenCalledWith([
       { exercise_id: 5, tag_id: 1 },
       { exercise_id: 5, tag_id: 2 },
     ])
     expect(result?.tags).toEqual(tagRows)
-    expect(exercises.value[0]?.name).toBe('Deadlift')
+    expect(store.exercises[0]?.name).toBe('Deadlift')
   })
 
   it('createExercise skips the join insert when no tags are given', async () => {
     const inserted = { id: 6, name: 'Plank', type: 'strength', notes: null, created_by: 'test-user-id', created_at: 'x' }
     mockExerciseInsertSingle.mockResolvedValue({ data: inserted, error: null })
 
-    const { createExercise } = useExercises()
-    const result = await createExercise('Plank', 'strength', [])
+    const store = useExercisesStore()
+    const result = await store.createExercise('Plank', 'strength', [])
 
     expect(mockExerciseTagsInsert).not.toHaveBeenCalled()
     expect(result?.tags).toEqual([])
@@ -98,12 +107,12 @@ describe('useExercises', () => {
     const updated = { id: 1, name: 'Ab Wheel', type: 'strength', notes: null, created_by: null, created_at: 'x' }
     mockExerciseUpdateSingle.mockResolvedValue({ data: updated, error: null })
 
-    const { exercises, fetchExercises, updateExercise } = useExercises()
-    await fetchExercises()
-    await updateExercise(1, { name: 'Ab Wheel' })
+    const store = useExercisesStore()
+    await store.fetchExercises()
+    await store.updateExercise(1, { name: 'Ab Wheel' })
 
-    expect(exercises.value.find((e) => e.id === 1)?.name).toBe('Ab Wheel')
-    expect(exercises.value.map((e) => e.name)).toEqual(['Ab Wheel', 'Bench'])
+    expect(store.exercises.find((e) => e.id === 1)?.name).toBe('Ab Wheel')
+    expect(store.exercises.map((e) => e.name)).toEqual(['Ab Wheel', 'Bench'])
   })
 
   it('updateExerciseTags replaces the exercise tag set', async () => {
@@ -116,11 +125,11 @@ describe('useExercises', () => {
     const newTags = [{ id: 4, name: 'lats', created_at: 'x' }]
     mockTagsIn.mockResolvedValue({ data: newTags, error: null })
 
-    const { exercises, fetchExercises, updateExerciseTags } = useExercises()
-    await fetchExercises()
-    await updateExerciseTags(7, [4])
+    const store = useExercisesStore()
+    await store.fetchExercises()
+    await store.updateExerciseTags(7, [4])
 
     expect(mockExerciseTagsDeleteEq).toHaveBeenCalledWith('exercise_id', 7)
-    expect(exercises.value.find((e) => e.id === 7)?.tags).toEqual(newTags)
+    expect(store.exercises.find((e) => e.id === 7)?.tags).toEqual(newTags)
   })
 })
