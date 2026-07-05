@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import type { Session } from '@supabase/supabase-js'
+import { useAuthStore } from '@/stores/auth'
 import { useTemplatesStore } from '@/stores/templates'
 
 const mockTemplateInsertSingle = vi.fn()
@@ -10,7 +12,7 @@ const mockTemplateListOrder = vi.fn()
 const mockTeOrder = vi.fn()
 const mockTeInsertSingle = vi.fn()
 const mockTeDeleteEq = vi.fn()
-const mockTeUpdateEq = vi.fn()
+const mockTeUpdateSelect = vi.fn()
 const mockWeOrder = vi.fn()
 const mockWeInIn = vi.fn()
 const mockSetsInOrder = vi.fn()
@@ -43,7 +45,7 @@ vi.mock('@/lib/supabase', () => ({
             return { select: vi.fn(() => ({ single: mockTeInsertSingle })) }
           }),
           delete: vi.fn(() => ({ eq: mockTeDeleteEq })),
-          update: vi.fn(() => ({ eq: mockTeUpdateEq })),
+          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: mockTeUpdateSelect })) })),
         }
       }
       if (table === 'workout_exercises') {
@@ -69,6 +71,7 @@ vi.mock('@/lib/supabase', () => ({
 describe('templates store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    useAuthStore().session = { user: { id: 'test-user-id' } } as Session
     vi.clearAllMocks()
   })
 
@@ -149,7 +152,7 @@ describe('templates store', () => {
   })
 
   it('reorderTemplateExercises updates sort_order and local state', async () => {
-    mockTeUpdateEq.mockResolvedValue({ error: null })
+    mockTeUpdateSelect.mockResolvedValue({ data: [{ id: 1 }], error: null })
 
     const store = useTemplatesStore()
     store.templateExercises = [
@@ -162,7 +165,7 @@ describe('templates store', () => {
 
     expect(store.templateExercises.map((te) => te.id)).toEqual([2, 3, 1])
     expect(store.templateExercises.map((te) => te.sort_order)).toEqual([0, 1, 2])
-    expect(mockTeUpdateEq).toHaveBeenCalledTimes(3)
+    expect(mockTeUpdateSelect).toHaveBeenCalledTimes(3)
   })
 
   it('loadTemplate fetches template and exercises', async () => {

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth'
 import type { ExerciseSet, TemplateExercise, TemplateExerciseProgress, TemplateExerciseProgressRow, TemplateSummary, WorkoutSummary, WorkoutTemplate } from '@/types/fitness'
 
 const RECENT_LIMIT = 5
@@ -13,6 +14,7 @@ const RECENT_LIMIT = 5
  * visit refetches.
  */
 export const useTemplatesStore = defineStore('templates', () => {
+  const authStore = useAuthStore()
   const templates = ref<TemplateSummary[]>([])
   const template = ref<WorkoutTemplate | null>(null)
   const templateExercises = ref<TemplateExercise[]>([])
@@ -36,14 +38,13 @@ export const useTemplatesStore = defineStore('templates', () => {
     if (loaded.value && !force) return
     listLoading.value = true
     error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) { listLoading.value = false; return }
+    const userId = authStore.user?.id
+    if (!userId) { listLoading.value = false; return }
 
     const { data, error: err } = await supabase
       .from('workout_templates')
       .select('*, template_exercises(count)')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
     listLoading.value = false
     if (err) { error.value = err.message; return }
@@ -82,13 +83,12 @@ export const useTemplatesStore = defineStore('templates', () => {
 
   async function createTemplate(name: string): Promise<WorkoutTemplate | null> {
     error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) { error.value = 'Not authenticated'; return null }
+    const userId = authStore.user?.id
+    if (!userId) { error.value = 'Not authenticated'; return null }
 
     const { data, error: err } = await supabase
       .from('workout_templates')
-      .insert({ user_id: user.id, name })
+      .insert({ user_id: userId, name })
       .select()
       .single()
     if (err) { error.value = err.message; return null }
@@ -181,12 +181,13 @@ export const useTemplatesStore = defineStore('templates', () => {
 
     const results = await Promise.all(
       templateExercises.value.map((te, i) =>
-        supabase.from('template_exercises').update({ sort_order: i }).eq('id', te.id),
+        supabase.from('template_exercises').update({ sort_order: i }).eq('id', te.id).select('id'),
       ),
     )
     const err = results.find((r) => r.error)?.error
-    if (err) {
-      error.value = err.message
+    const missing = results.some((r) => !r.error && !r.data?.length)
+    if (err || missing) {
+      error.value = err?.message ?? 'Volgorde opslaan mislukt'
       templateExercises.value = previous
     }
   }

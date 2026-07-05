@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import type { Session } from '@supabase/supabase-js'
+import { useAuthStore } from '@/stores/auth'
 import { useWorkouts } from '@/composables/useWorkouts'
 
 const mockWorkoutInsertSingle = vi.fn()
@@ -52,6 +55,8 @@ vi.mock('@/lib/supabase', () => ({
 
 describe('useWorkouts', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
+    useAuthStore().session = { user: { id: 'test-user-id' } } as Session
     vi.clearAllMocks()
   })
 

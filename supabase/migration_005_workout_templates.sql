@@ -46,5 +46,9 @@ create policy "Users can delete own template_exercises"
   on template_exercises for delete
   using (exists (select 1 from workout_templates t where t.id = template_id and t.user_id = auth.uid()));
 
+create policy "Users can update own template_exercises"
+  on template_exercises for update
+  using (exists (select 1 from workout_templates t where t.id = template_id and t.user_id = auth.uid()));
+
 -- Track which template a workout was started from (nullable; set null if template deleted)
 alter table workouts add column if not exists template_id bigint references workout_templates (id) on delete set null;

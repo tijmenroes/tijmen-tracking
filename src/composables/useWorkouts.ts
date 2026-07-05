@@ -1,8 +1,10 @@
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth'
 import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
 export function useWorkouts() {
+  const authStore = useAuthStore()
   const workout = ref<Workout | null>(null)
   const workoutExercises = ref<WorkoutExercise[]>([])
   const recentWorkouts = ref<WorkoutSummary[]>([])
@@ -45,9 +47,8 @@ export function useWorkouts() {
    */
   async function startWorkout(opts: { name?: string; templateId?: number } = {}): Promise<Workout | null> {
     error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) { error.value = 'Not authenticated'; return null }
+    const userId = authStore.user?.id
+    if (!userId) { error.value = 'Not authenticated'; return null }
 
     const insertPayload: {
       user_id: string
@@ -55,7 +56,7 @@ export function useWorkouts() {
       name: string | null
       template_id?: number
     } = {
-      user_id: user.id,
+      user_id: userId,
       date: todayIso(),
       name: opts.name ?? null,
     }
@@ -119,15 +120,14 @@ export function useWorkouts() {
   async function fetchRecentWorkouts(limit = 5) {
     loading.value = true
     error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) { loading.value = false; return }
+    const userId = authStore.user?.id
+    if (!userId) { loading.value = false; return }
 
     // !inner → only workouts that have at least one exercise
     const { data, error: err } = await supabase
       .from('workouts')
       .select('*, workout_exercises!inner(count)')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'saved')
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -140,14 +140,13 @@ export function useWorkouts() {
   async function fetchWorkoutsPage(offset: number, limit: number) {
     loading.value = true
     error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) { loading.value = false; return }
+    const userId = authStore.user?.id
+    if (!userId) { loading.value = false; return }
 
     const { data, count, error: err } = await supabase
       .from('workouts')
       .select('*, workout_exercises!inner(count)', { count: 'exact' })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'saved')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -161,14 +160,13 @@ export function useWorkouts() {
   async function fetchWorkoutsByTemplate(templateId: number) {
     loading.value = true
     error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) { loading.value = false; return }
+    const userId = authStore.user?.id
+    if (!userId) { loading.value = false; return }
 
     const { data, error: err } = await supabase
       .from('workouts')
       .select('*, workout_exercises!inner(count)')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('template_id', templateId)
       .eq('status', 'saved')
       .order('created_at', { ascending: false })
@@ -183,14 +181,13 @@ export function useWorkouts() {
    */
   async function fetchActiveWorkout(): Promise<WorkoutSummary | null> {
     error.value = null
-    const { data: userData } = await supabase.auth.getUser()
-    const user = userData.user
-    if (!user) return null
+    const userId = authStore.user?.id
+    if (!userId) return null
 
     const { data, error: err } = await supabase
       .from('workouts')
       .select('*, workout_exercises(count)')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)
