@@ -4,6 +4,16 @@ import { useAuthStore } from '@/stores/auth'
 import { useExercisesStore } from '@/stores/exercises'
 import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
+const activeWorkout = ref<WorkoutSummary | null>(null)
+const activeWorkoutLoaded = ref(false)
+let activeWorkoutInflight: Promise<WorkoutSummary | null> | null = null
+
+export function resetActiveWorkoutCache() {
+  activeWorkout.value = null
+  activeWorkoutLoaded.value = false
+  activeWorkoutInflight = null
+}
+
 export function useWorkouts() {
   const authStore = useAuthStore()
   const exercisesStore = useExercisesStore()
@@ -12,7 +22,6 @@ export function useWorkouts() {
   const recentWorkouts = ref<WorkoutSummary[]>([])
   const workoutsPage = ref<WorkoutSummary[]>([])
   const totalWorkouts = ref(0)
-  const activeWorkout = ref<WorkoutSummary | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -78,6 +87,11 @@ export function useWorkouts() {
     }
     workout.value = created
     workoutExercises.value = []
+    activeWorkout.value = {
+      ...(created as Workout),
+      exercise_count: 0,
+    }
+    activeWorkoutLoaded.value = true
 
     if (opts.templateId) {
       const { data: templateRows, error: teErr } = await supabase
@@ -97,6 +111,10 @@ export function useWorkouts() {
         )
         if (copyErr) { error.value = copyErr.message; return null }
         await fetchWorkoutExercises()
+        activeWorkout.value = {
+          ...(created as Workout),
+          exercise_count: templateRows.length,
+        }
       }
     }
 
@@ -181,25 +199,41 @@ export function useWorkouts() {
    * Fetch the user's current active (draft) workout, if any.
    * There can be at most one at a time (enforced by a unique index).
    */
-  async function fetchActiveWorkout(): Promise<WorkoutSummary | null> {
-    error.value = null
-    const userId = authStore.user?.id
-    if (!userId) return null
+  async function fetchActiveWorkout(force = false): Promise<WorkoutSummary | null> {
+    if (activeWorkoutLoaded.value && !force) return activeWorkout.value
+    if (activeWorkoutInflight) return activeWorkoutInflight
 
-    const { data, error: err } = await supabase
-      .from('workouts')
-      .select('*, workout_exercises(count)')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (err) { error.value = err.message; return null }
-    if (!data) { activeWorkout.value = null; return null }
+    activeWorkoutInflight = (async () => {
+      error.value = null
+      const userId = authStore.user?.id
+      if (!userId) return null
 
-    const { workout_exercises, ...rest } = data as SummaryRow
-    activeWorkout.value = { ...rest, exercise_count: workout_exercises?.[0]?.count ?? 0 }
-    return activeWorkout.value
+      const { data, error: err } = await supabase
+        .from('workouts')
+        .select('*, workout_exercises(count)')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (err) { error.value = err.message; return null }
+      if (!data) {
+        activeWorkout.value = null
+        activeWorkoutLoaded.value = true
+        return null
+      }
+
+      const { workout_exercises, ...rest } = data as SummaryRow
+      activeWorkout.value = { ...rest, exercise_count: workout_exercises?.[0]?.count ?? 0 }
+      activeWorkoutLoaded.value = true
+      return activeWorkout.value
+    })()
+
+    try {
+      return await activeWorkoutInflight
+    } finally {
+      activeWorkoutInflight = null
+    }
   }
 
   /**
@@ -352,6 +386,7 @@ export function useWorkouts() {
     workoutsPage,
     totalWorkouts,
     activeWorkout,
+    activeWorkoutLoaded,
     templateWorkouts,
     loading,
     error,

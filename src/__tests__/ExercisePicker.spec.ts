@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ExercisePicker from '@/components/ExercisePicker.vue'
@@ -90,6 +90,19 @@ describe('ExercisePicker filtering', () => {
 })
 
 describe('ExercisePicker multi-select', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function finishDismiss(wrapper: ReturnType<typeof mountPicker>) {
+    await vi.advanceTimersByTimeAsync(520)
+    await wrapper.vm.$nextTick()
+  }
+
   it('toggles selection on item click', async () => {
     const wrapper = mountPicker()
     await wrapper.findAll('.picker-list__item')[0]!.trigger('click')
@@ -105,6 +118,7 @@ describe('ExercisePicker multi-select', () => {
     await curl.trigger('click')
     await row.trigger('click')
     await wrapper.find('.picker-sheet__confirm').trigger('click')
+    await finishDismiss(wrapper)
 
     const emitted = wrapper.emitted('confirm')?.[0]?.[0] as Exercise[]
     expect(emitted.map((e) => e.name)).toEqual(['Curl', 'Row'])
@@ -113,6 +127,7 @@ describe('ExercisePicker multi-select', () => {
   it('emits confirm with empty list when closed without selection', async () => {
     const wrapper = mountPicker()
     await wrapper.find('.picker-sheet__close').trigger('click')
+    await finishDismiss(wrapper)
     expect(wrapper.emitted('confirm')?.[0]?.[0]).toEqual([])
   })
 

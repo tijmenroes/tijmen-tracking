@@ -62,15 +62,17 @@
             v-for="t in recentTemplates"
             :key="t.id"
             class="wdash__item"
-            @click="handleStartFromTemplate(t.id)"
           >
-            <div class="wdash__item-info">
+            <div
+              class="wdash__item-info"
+              @click="router.push(`/workout/templates/${t.id}`)"
+            >
               <span class="wdash__item-name">{{ t.name }}</span>
               <span class="wdash__item-sub">
                 {{ t.exercise_count }} {{ t.exercise_count === 1 ? 'oefening' : 'oefeningen' }}
               </span>
             </div>
-            <span class="wdash__item-action">Start ›</span>
+            <span class="wdash__item-action" @click="handleStartFromTemplate(t.id)">Start ›</span>
           </li>
         </ul>
 

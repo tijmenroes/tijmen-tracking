@@ -143,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import type { WorkoutExercise, ExerciseSet } from '@/types/fitness'
 import { useExerciseSets } from '@/composables/useExerciseSets'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -156,6 +156,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'remove', id: number): void
   (e: 'detail', we: WorkoutExercise): void
+  (e: 'logged-sets-change', hasLogged: boolean): void
 }>()
 
 const { sets, previousSets, fetchSets, fetchPreviousSets, addSet, updateSet: updateSetData, deleteSet, applyPreviousSets } = useExerciseSets()
@@ -206,9 +207,7 @@ async function handleApplyPrevious() {
   applyingPrevious.value = false
 }
 
-function hasLoggedData(): boolean {
-  if (localNotes.value.trim()) return true
-  if (localPainScale.value != null) return true
+function hasLoggedSets(): boolean {
   return sets.value.some(
     (s) =>
       s.weight_kg != null ||
@@ -217,6 +216,20 @@ function hasLoggedData(): boolean {
       s.distance_km != null,
   )
 }
+
+function hasLoggedData(): boolean {
+  if (localNotes.value.trim()) return true
+  if (localPainScale.value != null) return true
+  return hasLoggedSets()
+}
+
+watch(
+  sets,
+  () => {
+    emit('logged-sets-change', hasLoggedSets())
+  },
+  { deep: true, immediate: true },
+)
 
 function handleRemoveClick() {
   if (hasLoggedData()) {

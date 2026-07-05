@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import type { Session } from '@supabase/supabase-js'
 import { useAuthStore } from '@/stores/auth'
 import { useExercisesStore } from '@/stores/exercises'
-import { useWorkouts } from '@/composables/useWorkouts'
+import { useWorkouts, resetActiveWorkoutCache } from '@/composables/useWorkouts'
 
 const mockWorkoutInsertSingle = vi.fn()
 const mockWorkoutSelectSingle = vi.fn()
@@ -59,6 +59,7 @@ describe('useWorkouts', () => {
     setActivePinia(createPinia())
     useAuthStore().session = { user: { id: 'test-user-id' } } as Session
     useExercisesStore().$patch({ exercises: [], loaded: true })
+    resetActiveWorkoutCache()
     vi.clearAllMocks()
   })
 
@@ -66,12 +67,14 @@ describe('useWorkouts', () => {
     const created = { id: 1, user_id: 'test-user-id', date: '2026-07-04', name: 'Push A', notes: null, template_id: null, created_at: 'x' }
     mockWorkoutInsertSingle.mockResolvedValue({ data: created, error: null })
 
-    const { workout, workoutExercises, startWorkout } = useWorkouts()
+    const { workout, workoutExercises, activeWorkout, startWorkout } = useWorkouts()
     const result = await startWorkout({ name: 'Push A' })
 
     expect(result).toEqual(created)
     expect(workout.value).toEqual(created)
     expect(workoutExercises.value).toEqual([])
+    expect(activeWorkout.value?.id).toBe(1)
+    expect(activeWorkout.value?.exercise_count).toBe(0)
   })
 
   it('startWorkout surfaces an error and returns null', async () => {

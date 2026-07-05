@@ -33,6 +33,7 @@
           :workout-exercise="we"
           :on-update-extra="updateWorkoutExercise"
           @remove="handleRemoveExercise"
+          @logged-sets-change="(hasLogged) => onLoggedSetsChange(we.id, hasLogged)"
           @detail="router.push(`/exercises/${we.exercise_id}/detail`)"
         />
       </div>
@@ -45,7 +46,7 @@
         <p class="workout__save-hint">
           Lege sets worden bij het opslaan automatisch verwijderd.
         </p>
-        <button class="workout__save-btn" :disabled="saving" @click="handleSave">
+        <button class="workout__save-btn" :disabled="saving || !canSaveWorkout" @click="handleSave">
           {{ saving ? 'Opslaan…' : 'Workout opslaan' }}
         </button>
         <button class="workout__delete-btn" type="button" @click="showDeleteConfirm = true">
@@ -112,6 +113,11 @@ const showPicker = ref(false)
 const showEditModal = ref(false)
 const showDeleteConfirm = ref(false)
 const saving = ref(false)
+const loggedSetsByExercise = ref<Record<number, boolean>>({})
+
+const canSaveWorkout = computed(() =>
+  workoutExercises.value.some((we) => loggedSetsByExercise.value[we.id]),
+)
 
 const formattedDate = computed(() => {
   if (!workout.value) return ''
@@ -132,11 +138,16 @@ async function handleConfirmExercises(selected: Exercise[]) {
 }
 
 async function handleRemoveExercise(id: number) {
+  delete loggedSetsByExercise.value[id]
   await removeExerciseFromWorkout(id)
 }
 
+function onLoggedSetsChange(id: number, hasLogged: boolean) {
+  loggedSetsByExercise.value[id] = hasLogged
+}
+
 async function handleSave() {
-  if (!workout.value || saving.value) return
+  if (!workout.value || saving.value || !canSaveWorkout.value) return
   saving.value = true
   const result = await saveWorkout(workout.value.id)
   saving.value = false

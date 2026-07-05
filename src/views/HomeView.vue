@@ -16,6 +16,11 @@
         <div class="metric-card__label">Workout</div>
         <div class="metric-card__chevron">›</div>
       </button>
+      <button class="metric-card" @click="router.push('/workout/templates')">
+        <div class="metric-card__icon">📑</div>
+        <div class="metric-card__label">Templates</div>
+        <div class="metric-card__chevron">›</div>
+      </button>
       <button v-if="isAdmin" class="metric-card" @click="router.push('/exercises')">
         <div class="metric-card__icon">📋</div>
         <div class="metric-card__label">Oefeningen beheren</div>
@@ -23,7 +28,7 @@
       </button>
     </div>
 
-    <p class="home__build">Time:{{ buildLabel }}</p>
+    <p class="home__build">{{ buildLabel }}</p>
   </div>
 </template>
 
@@ -32,10 +37,12 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProfileStore } from '@/stores/profile'
+import { useWorkouts } from '@/composables/useWorkouts'
 
 const router = useRouter()
 const profileStore = useProfileStore()
 const { isAdmin } = storeToRefs(profileStore)
+const { fetchActiveWorkout } = useWorkouts()
 
 const buildLabel = computed(() => {
   const date = new Date(__BUILD_TIME__)
@@ -49,7 +56,10 @@ const buildLabel = computed(() => {
   })}`
 })
 
-onMounted(() => profileStore.load())
+onMounted(() => {
+  profileStore.load()
+  fetchActiveWorkout()
+})
 </script>
 
 <style scoped>

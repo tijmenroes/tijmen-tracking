@@ -1,62 +1,64 @@
 <template>
-  <div class="picker-backdrop" @click.self="confirm">
-    <div class="picker-sheet">
-      <div class="picker-sheet__handle" />
-      <div class="picker-sheet__header">
-        <h2 class="picker-sheet__title">Oefening toevoegen</h2>
-        <button class="picker-sheet__close" type="button" @click="confirm">×</button>
-      </div>
-
-      <div class="picker-sheet__filter">
-        <ExerciseFilterBar
-          v-model:query="query"
-          v-model:filter-tag-id="filterTagId"
-          v-model:sort-by="sortBy"
-          :tags="tags"
-          show-sort
-        />
-      </div>
-
-      <div class="picker-sheet__body">
-        <div v-if="loading" class="picker-sheet__empty">Laden…</div>
-        <div v-else-if="exercises.length === 0" class="picker-sheet__empty">
-          Nog geen oefeningen aangemaakt.
-        </div>
-        <div v-else-if="filtered.length === 0" class="picker-sheet__empty">
-          Geen oefeningen voor deze filters.
+  <Transition name="scrim">
+    <div v-if="visible" class="picker-backdrop" @click.self="confirm">
+      <div class="picker-sheet" :class="{ 'picker-sheet--open': sheetOpen }">
+        <div class="picker-sheet__handle" />
+        <div class="picker-sheet__header">
+          <h2 class="picker-sheet__title">Oefening toevoegen</h2>
+          <button class="picker-sheet__close" type="button" @click="confirm">×</button>
         </div>
 
-        <ul v-else class="picker-list">
-          <li
-            v-for="ex in filtered"
-            :key="ex.id"
-            class="picker-list__item"
-            :class="{ 'picker-list__item--selected': isSelected(ex.id) }"
-            @click="toggle(ex.id)"
-          >
-            <span class="picker-list__check" :class="{ 'picker-list__check--on': isSelected(ex.id) }"
-              >✓</span
+        <div class="picker-sheet__filter">
+          <ExerciseFilterBar
+            v-model:query="query"
+            v-model:filter-tag-id="filterTagId"
+            v-model:sort-by="sortBy"
+            :tags="tags"
+            show-sort
+          />
+        </div>
+
+        <div class="picker-sheet__body">
+          <div v-if="loading" class="picker-sheet__empty">Laden…</div>
+          <div v-else-if="exercises.length === 0" class="picker-sheet__empty">
+            Nog geen oefeningen aangemaakt.
+          </div>
+          <div v-else-if="filtered.length === 0" class="picker-sheet__empty">
+            Geen oefeningen voor deze filters.
+          </div>
+
+          <TransitionGroup v-else name="list" tag="ul" class="picker-list">
+            <li
+              v-for="ex in filtered"
+              :key="ex.id"
+              class="picker-list__item"
+              :class="{ 'picker-list__item--selected': isSelected(ex.id) }"
+              @click="toggle(ex.id)"
             >
-            <div class="picker-list__info">
-              <span class="picker-list__name">{{ ex.name }}</span>
-              <div v-if="ex.tags && ex.tags.length" class="picker-list__tags">
-                <span v-for="tag in ex.tags" :key="tag.id" class="picker-list__tag">{{
-                  tag.name
-                }}</span>
+              <span class="picker-list__check" :class="{ 'picker-list__check--on': isSelected(ex.id) }"
+                >✓</span
+              >
+              <div class="picker-list__info">
+                <span class="picker-list__name">{{ ex.name }}</span>
+                <div v-if="ex.tags && ex.tags.length" class="picker-list__tags">
+                  <span v-for="tag in ex.tags" :key="tag.id" class="picker-list__tag">{{
+                    tag.name
+                  }}</span>
+                </div>
               </div>
-            </div>
-            <span v-if="sortBy === 'frequency'" class="picker-list__count">{{ usageCount(ex.id) }}</span>
-          </li>
-        </ul>
-      </div>
+              <span v-if="sortBy === 'frequency'" class="picker-list__count">{{ usageCount(ex.id) }}</span>
+            </li>
+          </TransitionGroup>
+        </div>
 
-      <div class="picker-sheet__footer">
-        <button class="picker-sheet__confirm" type="button" @click="confirm">
-          {{ confirmLabel }}
-        </button>
+        <div class="picker-sheet__footer">
+          <button class="picker-sheet__confirm" type="button" @click="confirm">
+            {{ confirmLabel }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -66,6 +68,8 @@ import type { Exercise, Tag } from '@/types/fitness'
 import { filterExercises, sortExercises, type ExerciseSortMode } from '@/utils/exerciseSearch'
 import { useExercisesStore } from '@/stores/exercises'
 import ExerciseFilterBar from '@/components/ExerciseFilterBar.vue'
+
+const SHEET_CLOSE_MS = 320
 
 const props = defineProps<{ exercises: Exercise[]; tags: Tag[]; loading: boolean }>()
 const emit = defineEmits<{ (e: 'confirm', exercises: Exercise[]): void }>()
@@ -78,6 +82,9 @@ const query = ref('')
 const filterTagId = ref<number | null>(null)
 const sortBy = ref<ExerciseSortMode>('name')
 const selectedIds = ref<number[]>([])
+const visible = ref(true)
+const sheetOpen = ref(false)
+const closing = ref(false)
 
 const filtered = computed(() => {
   const matches = filterExercises(props.exercises, query.value, filterTagId.value)
@@ -90,6 +97,9 @@ function usageCount(exerciseId: number) {
 
 onMounted(() => {
   void fetchUsageCounts()
+  requestAnimationFrame(() => {
+    sheetOpen.value = true
+  })
 })
 
 const confirmLabel = computed(() =>
@@ -107,11 +117,19 @@ function toggle(id: number) {
 }
 
 function confirm() {
+  if (closing.value) return
+  closing.value = true
+  sheetOpen.value = false
+
   const byId = new Map(props.exercises.map((ex) => [ex.id, ex]))
   const selected = selectedIds.value
     .map((id) => byId.get(id))
     .filter((ex): ex is Exercise => ex != null)
-  emit('confirm', selected)
+
+  setTimeout(() => {
+    visible.value = false
+    setTimeout(() => emit('confirm', selected), 200)
+  }, SHEET_CLOSE_MS)
 }
 </script>
 
@@ -134,6 +152,12 @@ function confirm() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transform: translateY(110%);
+  transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.picker-sheet--open {
+  transform: translateY(0);
 }
 
 .picker-sheet__handle {
@@ -327,5 +351,12 @@ function confirm() {
   color: #fff;
   cursor: pointer;
   font-family: var(--font);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-sheet {
+    transition: none;
+    transform: translateY(0);
+  }
 }
 </style>

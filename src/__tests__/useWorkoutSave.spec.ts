@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useWorkouts } from '@/composables/useWorkouts'
+import { createPinia, setActivePinia } from 'pinia'
+import type { Session } from '@supabase/supabase-js'
+import { useAuthStore } from '@/stores/auth'
+import { useWorkouts, resetActiveWorkoutCache } from '@/composables/useWorkouts'
 
 const mockActiveMaybeSingle = vi.fn()
 const mockWorkoutUpdateSingle = vi.fn()
@@ -52,7 +55,10 @@ vi.mock('@/lib/supabase', () => ({
 
 describe('useWorkouts – active workout & save', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
+    useAuthStore().session = { user: { id: 'test-user-id' } } as Session
     vi.clearAllMocks()
+    resetActiveWorkoutCache()
     weSelectResults = []
     weSelectIdx = 0
     mockWeDeleteEq.mockResolvedValue({ error: null })
@@ -86,6 +92,25 @@ describe('useWorkouts – active workout & save', () => {
 
     expect(result).toBeNull()
     expect(activeWorkout.value).toBeNull()
+  })
+
+  it('fetchActiveWorkout uses the cache on subsequent calls', async () => {
+    mockActiveMaybeSingle.mockResolvedValue({
+      data: {
+        id: 3, user_id: 'test-user-id', date: '2026-07-05', name: 'Push A',
+        notes: null, template_id: null, status: 'active', created_at: 'x',
+        workout_exercises: [{ count: 2 }],
+      },
+      error: null,
+    })
+
+    const first = useWorkouts()
+    await first.fetchActiveWorkout()
+    const second = useWorkouts()
+    const result = await second.fetchActiveWorkout()
+
+    expect(result?.id).toBe(3)
+    expect(mockActiveMaybeSingle).toHaveBeenCalledTimes(1)
   })
 
   it('saveWorkout deletes empty sets and marks the workout saved', async () => {

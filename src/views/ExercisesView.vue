@@ -53,7 +53,12 @@
 
       <!-- List -->
       <div v-if="loading" class="exercises__loading">Laden…</div>
-      <ul v-else class="exercises__list">
+      <TransitionGroup
+        v-else-if="filteredExercises.length > 0"
+        name="list"
+        tag="ul"
+        class="exercises__list"
+      >
         <li v-for="ex in filteredExercises" :key="ex.id" class="exercises__item">
           <div class="exercises__item-info">
             <div class="exercises__item-top">
@@ -69,8 +74,10 @@
           <button class="exercises__item-edit" title="Aanpassen" @click="openEdit(ex)">✎</button>
           <button class="exercises__item-del" title="Verwijderen" @click="confirmTarget = ex">×</button>
         </li>
+      </TransitionGroup>
+      <ul v-else class="exercises__list">
         <li v-if="exercises.length === 0" class="exercises__empty">Nog geen oefeningen.</li>
-        <li v-else-if="filteredExercises.length === 0" class="exercises__empty">Geen oefeningen gevonden.</li>
+        <li v-else class="exercises__empty">Geen oefeningen gevonden.</li>
       </ul>
     </div>
 
