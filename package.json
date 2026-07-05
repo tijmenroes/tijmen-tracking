@@ -24,9 +24,11 @@
     "@capacitor/core": "^8.3.4",
     "@capacitor/ios": "^8.3.4",
     "@supabase/supabase-js": "^2.106.0",
+    "apexcharts": "^5.16.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.32",
-    "vue-router": "^5.0.4"
+    "vue-router": "^5.0.4",
+    "vue3-apexcharts": "^1.11.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

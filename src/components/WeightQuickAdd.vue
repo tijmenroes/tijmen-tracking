@@ -1,20 +1,18 @@
 <template>
   <div class="quick-add">
-    <div class="quick-add__row">
-      <div class="quick-add__weight-wrap">
-        <input
-          ref="inputRef"
-          v-model="weightStr"
-          type="text"
-          inputmode="decimal"
-          placeholder="0.0"
-          class="quick-add__weight-input"
-        />
-        <span class="quick-add__unit">kg</span>
-      </div>
-
-      <input v-model="selectedDate" type="date" class="quick-add__date-input" />
+    <div class="quick-add__weight-wrap">
+      <input
+        ref="inputRef"
+        v-model="weightStr"
+        type="text"
+        inputmode="decimal"
+        placeholder="0.0"
+        class="quick-add__weight-input"
+      />
+      <span class="quick-add__unit">kg</span>
     </div>
+
+    <input v-model="selectedDate" type="date" class="quick-add__date-input" />
 
     <button class="quick-add__btn" :disabled="!isValid" @click="handleSubmit">
       Voeg toe
@@ -75,14 +73,7 @@ function todayString() {
   gap: 12px;
 }
 
-.quick-add__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .quick-add__weight-wrap {
-  flex: 1;
   display: flex;
   align-items: baseline;
   gap: 6px;
@@ -120,7 +111,12 @@ function todayString() {
   padding: 12px 14px;
   font-size: 14px;
   color: var(--color-text-2);
-  flex-shrink: 0;
+  width: 50%;
+  align-self: flex-end;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .quick-add__btn {

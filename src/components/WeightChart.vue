@@ -8,112 +8,67 @@
       <div class="range-tabs">
         <button
           v-for="p in PERIODS"
-          :key="p"
+          :key="p.key"
           class="range-tabs__btn"
-          :class="{ 'range-tabs__btn--active': activePeriod === p }"
-          @click="activePeriod = p"
-        >{{ p }}</button>
+          :class="{ 'range-tabs__btn--active': activePeriod === p.key }"
+          @click="activePeriod = p.key"
+        >{{ p.label }}</button>
       </div>
     </div>
 
-    <svg
-      v-if="pts.length >= 2"
-      class="chart-svg"
-      :viewBox="`0 0 ${W} ${H}`"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient :id="gradientId" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" :style="{ stopColor: 'var(--color-primary)', stopOpacity: 0.32 }" />
-          <stop offset="100%" :style="{ stopColor: 'var(--color-primary)', stopOpacity: 0 }" />
-        </linearGradient>
-      </defs>
-
-      <!-- goal dashed line -->
-      <g v-if="goalY !== null">
-        <line :x1="PAD_L" :y1="goalY" :x2="W - PAD_R" :y2="goalY"
-              style="stroke: var(--color-text-3);" stroke-width="1" stroke-dasharray="3 4" />
-        <text :x="W - PAD_R" :y="goalY - 4" text-anchor="end"
-              font-size="9" style="fill: var(--color-text-3);" font-family="inherit">
-          doel {{ goalKg.toFixed(1) }}
-        </text>
-      </g>
-
-      <!-- area fill -->
-      <path v-if="variant === 'area'" :d="areaPath" :fill="`url(#${gradientId})`" />
-
-      <!-- curve -->
-      <path :d="linePath" fill="none" style="stroke: var(--color-primary);"
-            :stroke-width="variant === 'minimal' ? 1.5 : 2.2"
-            stroke-linecap="round" stroke-linejoin="round" />
-
-      <!-- dots (all but last) -->
-      <template v-if="variant !== 'minimal'">
-        <g v-for="([x, y], i) in pts.slice(0, -1)" :key="i">
-          <circle :cx="x" :cy="y" r="3.5" fill="var(--color-card)" />
-          <circle :cx="x" :cy="y" r="3.5" fill="none"
-                  style="stroke: var(--color-primary);" stroke-width="1.8" />
-        </g>
-      </template>
-
-      <!-- last point highlighted -->
-      <g v-if="pts.length">
-        <circle :cx="pts[pts.length - 1]![0]" :cy="pts[pts.length - 1]![1]"
-                r="6" style="fill: var(--color-primary);" opacity="0.18" />
-        <circle :cx="pts[pts.length - 1]![0]" :cy="pts[pts.length - 1]![1]"
-                r="4" style="fill: var(--color-primary);" />
-      </g>
-
-      <!-- x-axis labels -->
-      <text
-        v-for="label in xLabels"
-        :key="label.text"
-        :x="label.x"
-        :y="H - 8"
-        text-anchor="middle"
-        font-size="10"
-        font-family="inherit"
-        style="fill: var(--color-text-3);"
-      >{{ label.text }}</text>
-    </svg>
+    <VueApexCharts
+      v-if="hasData"
+      type="area"
+      height="200"
+      :options="options"
+      :series="series"
+    />
 
     <p v-else class="chart-empty">Niet genoeg data.</p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, getCurrentInstance } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import VueApexCharts from 'vue3-apexcharts'
+import type { ApexOptions } from 'apexcharts'
 import type { Weight } from '@/composables/useWeights'
+import { linearTrend } from '@/utils/trend'
 
-const props = withDefaults(
-  defineProps<{
-    weights: Weight[]
-    goalKg?: number
-    variant?: 'area' | 'dots' | 'minimal'
-  }>(),
-  { goalKg: 75, variant: 'area' },
-)
+const props = defineProps<{
+  weights: Weight[]
+}>()
 
-const W = 354
-const H = 180
-const PAD_L = 8
-const PAD_R = 8
-const PAD_T = 18
-const PAD_B = 28
+const PERIODS = [
+  { key: '3M', label: '3M', days: 90 },
+  { key: 'J', label: 'J', days: 365 },
+  { key: 'All', label: 'All', days: Infinity },
+] as const
+type PeriodKey = (typeof PERIODS)[number]['key']
 
-const PERIODS = ['W', 'M', '6M', 'J'] as const
-type Period = (typeof PERIODS)[number]
-const PERIOD_DAYS: Record<Period, number> = { W: 7, M: 30, '6M': 180, J: 365 }
+const activePeriod = ref<PeriodKey>('3M')
 
-const activePeriod = ref<Period>('M')
-const gradientId = `wc-grad-${getCurrentInstance()?.uid ?? Math.random().toString(36).slice(2)}`
+// Resolve theme colors once so ApexCharts follows our design tokens.
+const colors = ref({ primary: '#7C3AED', trend: 'rgba(14,11,26,0.36)', label: 'rgba(14,11,26,0.36)' })
+onMounted(() => {
+  const cs = getComputedStyle(document.documentElement)
+  const read = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback
+  colors.value = {
+    primary: read('--color-primary', '#7C3AED'),
+    trend: read('--color-text-3', 'rgba(14,11,26,0.36)'),
+    label: read('--color-text-3', 'rgba(14,11,26,0.36)'),
+  }
+})
 
 const filtered = computed(() => {
-  const cutoff = Date.now() - PERIOD_DAYS[activePeriod.value] * 86_400_000
+  const days = PERIODS.find((p) => p.key === activePeriod.value)!.days
+  const cutoff = days === Infinity ? -Infinity : Date.now() - days * 86_400_000
   return props.weights
     .filter((w) => w.weight !== null && w.date !== null && new Date(w.date).getTime() >= cutoff)
     .sort((a, b) => a.date!.localeCompare(b.date!))
 })
+
+const hasData = computed(() => filtered.value.length >= 2)
 
 const average = computed(() => {
   const vals = filtered.value.map((w) => w.weight!)
@@ -121,74 +76,107 @@ const average = computed(() => {
   return (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1)
 })
 
-const pts = computed((): [number, number][] => {
-  const data = filtered.value
-  if (data.length < 2) return []
+const weightPoints = computed(() =>
+  filtered.value.map((w) => ({ x: new Date(w.date!).getTime(), y: w.weight! })),
+)
 
-  const times = data.map((w) => new Date(w.date!).getTime())
-  const vals = data.map((w) => w.weight!)
-  const tMin = Math.min(...times), tMax = Math.max(...times)
-  const vMin = Math.min(...vals) - 1.0
-  const vMax = Math.max(...vals) + 1.0
-
-  const sx = (t: number) => PAD_L + ((t - tMin) / Math.max(1, tMax - tMin)) * (W - PAD_L - PAD_R)
-  const sy = (v: number) => PAD_T + (1 - (v - vMin) / Math.max(0.001, vMax - vMin)) * (H - PAD_T - PAD_B)
-
-  return data.map((w) => [sx(new Date(w.date!).getTime()), sy(w.weight!)])
+const trendPoints = computed(() => {
+  const pts = weightPoints.value.map((p) => [p.x, p.y] as [number, number])
+  const fit = linearTrend(pts)
+  if (!fit) return []
+  const xMin = pts[0]![0]
+  const xMax = pts[pts.length - 1]![0]
+  return [
+    { x: xMin, y: fit.predict(xMin) },
+    { x: xMax, y: fit.predict(xMax) },
+  ]
 })
 
-// catmull-rom → cubic bezier (tension 0.18, faithful to design)
-function buildCurve(points: [number, number][]): string {
-  if (!points.length) return ''
-  let path = `M ${points[0]![0]} ${points[0]![1]}`
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] ?? points[i]!
-    const p1 = points[i]!
-    const p2 = points[i + 1]!
-    const p3 = points[i + 2] ?? p2
-    const t = 0.18
-    const c1x = p1[0] + (p2[0] - p0[0]) * t
-    const c1y = p1[1] + (p2[1] - p0[1]) * t
-    const c2x = p2[0] - (p3[0] - p1[0]) * t
-    const c2y = p2[1] - (p3[1] - p1[1]) * t
-    path += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2[0]} ${p2[1]}`
-  }
-  return path
-}
+const series = computed(() => [
+  { name: 'Gewicht', type: 'area', data: weightPoints.value },
+  { name: 'Trend', type: 'line', data: trendPoints.value },
+])
 
-const linePath = computed(() => buildCurve(pts.value))
+// Build a "nice" integer y-scale so tick labels stay clean & rounded,
+// even after a dynamic (reactive) update rather than a full refresh.
+const yScale = computed(() => {
+  const vals = filtered.value.map((w) => w.weight!)
+  if (!vals.length) return { min: undefined, max: undefined, tickAmount: undefined }
 
-const areaPath = computed(() => {
-  if (!pts.value.length) return ''
-  const bottomY = H - PAD_B
-  const first = pts.value[0]!
-  const last = pts.value[pts.value.length - 1]!
-  return `${linePath.value} L ${last[0]} ${bottomY} L ${first[0]} ${bottomY} Z`
+  const rawMin = Math.min(...vals) - 1
+  const rawMax = Math.max(...vals) + 1
+  const targetTicks = 4
+  const range = Math.max(1, rawMax - rawMin)
+  const mag = Math.pow(10, Math.floor(Math.log10(range / targetTicks)))
+  const norm = range / targetTicks / mag
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag
+
+  const min = Math.floor(rawMin / step) * step
+  const max = Math.ceil(rawMax / step) * step
+  return { min, max, tickAmount: Math.round((max - min) / step) }
 })
 
-const goalY = computed(() => {
-  const data = filtered.value
-  if (!data.length) return null
-  const vals = data.map((w) => w.weight!)
-  const vMin = Math.min(...vals) - 1.0
-  const vMax = Math.max(...vals) + 1.0
-  if (props.goalKg < vMin || props.goalKg > vMax) return null
-  return PAD_T + (1 - (props.goalKg - vMin) / Math.max(0.001, vMax - vMin)) * (H - PAD_T - PAD_B)
-})
-
-const xLabels = computed(() => {
-  const data = filtered.value
-  const points = pts.value
-  if (points.length < 2) return []
-  const n = Math.min(4, data.length)
-  return Array.from({ length: n }, (_, i) => {
-    const idx = i === n - 1 ? data.length - 1 : Math.round((i * (data.length - 1)) / (n - 1))
-    return {
-      x: points[idx]![0],
-      text: new Date(data[idx]!.date!).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
-    }
-  })
-})
+const options = computed<ApexOptions>(() => ({
+  chart: {
+    fontFamily: 'inherit',
+    toolbar: { show: false },
+    zoom: { enabled: false },
+    animations: { enabled: true, dynamicAnimation: { speed: 350 } },
+    parentHeightOffset: 0,
+    sparkline: { enabled: false },
+  },
+  colors: [colors.value.primary, colors.value.trend],
+  dataLabels: { enabled: false },
+  legend: { show: false },
+  stroke: {
+    curve: 'smooth',
+    width: [2.4, 1.5],
+    dashArray: [0, 5],
+    lineCap: 'round',
+  },
+  fill: {
+    type: ['gradient', 'solid'],
+    gradient: { shadeIntensity: 1, opacityFrom: 0.32, opacityTo: 0, stops: [0, 100] },
+    opacity: [1, 0],
+  },
+  markers: { size: 0, hover: { size: 4 } },
+  grid: {
+    show: false,
+    padding: { top: 0, right: 6, bottom: 0, left: 6 },
+  },
+  xaxis: {
+    type: 'datetime',
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    tooltip: { enabled: false },
+    labels: {
+      datetimeUTC: false,
+      style: { colors: colors.value.label, fontSize: '10px' },
+      format: activePeriod.value === '3M' ? 'd MMM' : 'MMM yy',
+    },
+  },
+  yaxis: {
+    show: true,
+    min: yScale.value.min,
+    max: yScale.value.max,
+    tickAmount: yScale.value.tickAmount,
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+    labels: {
+      style: { colors: colors.value.label, fontSize: '10px' },
+      formatter: (val: number) => `${Math.round(val)}`,
+    },
+  },
+  tooltip: {
+    theme: 'light',
+    x: { format: 'd MMM yyyy' },
+    y: {
+      formatter: (val: number, opts?: { seriesIndex: number }) =>
+        `${val.toFixed(1)} kg${opts?.seriesIndex === 1 ? ' (trend)' : ''}`,
+    },
+    marker: { show: true },
+  },
+}))
 </script>
 
 <style scoped>
@@ -230,7 +218,7 @@ const xLabels = computed(() => {
 .range-tabs__btn {
   flex: 1;
   height: 28px;
-  min-width: 36px;
+  min-width: 40px;
   border: none;
   border-radius: 7px;
   cursor: pointer;
@@ -247,13 +235,6 @@ const xLabels = computed(() => {
   box-shadow: var(--shadow-chip-active);
   color: var(--color-text);
   font-weight: 600;
-}
-
-.chart-svg {
-  width: 100%;
-  height: auto;
-  display: block;
-  overflow: visible;
 }
 
 .chart-empty {

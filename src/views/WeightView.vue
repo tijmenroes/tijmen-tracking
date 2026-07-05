@@ -7,7 +7,6 @@
           <button class="page__back" aria-label="Terug" @click="router.push('/')">‹</button>
           <div class="page__supra">Gezondheid</div>
         </div>
-        <button class="page__signout" @click="handleSignOut">Uitloggen</button>
       </div>
       <div class="page__title-row">
         <h1 class="page__title">Gewicht</h1>
@@ -17,13 +16,12 @@
 
     <!-- Cards -->
     <div class="page__content">
-      <WeightQuickAdd
-        :last-weight="currentWeight"
-        :error="error"
-        @save="handleAdd"
-      />
+      <WeightQuickAdd :last-weight="currentWeight" :error="error" @save="handleAdd" />
       <WeightChart :weights="weights" />
+      <!-- Doel card hidden until goal tracking is functional
       <WeightGoalCard :current-weight="currentWeight" />
+      -->
+
       <WeightTableCard
         :weights="weights"
         @save="handleUpdate"
@@ -35,14 +33,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWeights } from '@/composables/useWeights'
 import { useAuthStore } from '@/stores/auth'
 import WeightQuickAdd from '@/components/WeightQuickAdd.vue'
-import WeightChart from '@/components/WeightChart.vue'
-import WeightGoalCard from '@/components/WeightGoalCard.vue'
+// import WeightGoalCard from '@/components/WeightGoalCard.vue' // hidden until goal tracking is functional
 import WeightTableCard from '@/components/WeightTableCard.vue'
+
+// Lazily loaded so the heavy ApexCharts bundle streams in separately
+// and doesn't block the rest of the weight page from rendering.
+const WeightChart = defineAsyncComponent(() => import('@/components/WeightChart.vue'))
 
 const router = useRouter()
 const authStore = useAuthStore()
