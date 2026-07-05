@@ -22,11 +22,13 @@
         <div class="metric-card__chevron">›</div>
       </button>
     </div>
+
+    <p class="home__build">{{ buildLabel }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProfileStore } from '@/stores/profile'
@@ -35,14 +37,28 @@ const router = useRouter()
 const profileStore = useProfileStore()
 const { isAdmin } = storeToRefs(profileStore)
 
+const buildLabel = computed(() => {
+  const date = new Date(__BUILD_TIME__)
+  return `Build ${date.toLocaleString('nl-NL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  })}`
+})
+
 onMounted(() => profileStore.load())
 </script>
 
 <style scoped>
 .home {
   min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   background: var(--color-bg);
-  padding-bottom: 40px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 .home__header {
@@ -102,5 +118,13 @@ onMounted(() => profileStore.load())
   font-size: 22px;
   color: var(--color-text-3);
   line-height: 1;
+}
+
+.home__build {
+  margin: auto 0 0;
+  padding: 24px 20px 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-3);
 }
 </style>

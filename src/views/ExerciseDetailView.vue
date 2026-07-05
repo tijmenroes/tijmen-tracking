@@ -16,23 +16,21 @@
         <span v-for="tag in exercise.tags" :key="tag.id" class="detail__tag">{{ tag.name }}</span>
       </div>
 
-      <!-- Persistent exercise notes -->
-      <div class="card detail__exercise-notes">
-        <div class="detail__section-label">Notities over deze oefening</div>
-        <textarea
-          v-model="exerciseNotes"
-          class="detail__notes-input"
-          placeholder="Bijv. techniek tips, blessure-aandachtspunten..."
-          rows="3"
-          @blur="saveExerciseNotes"
-        />
+      <!-- Estimated 1RM headline -->
+      <div v-if="isStrength && bestSet" class="card detail__pr">
+        <div class="detail__section-label">Geschatte 1RM (predicted)</div>
+        <div class="detail__pr-value">{{ roundE1RM(bestSet.e1rm) }} <span class="detail__pr-unit">kg</span></div>
+        <div class="detail__pr-sub">Beste set: {{ bestSet.weight }} kg × {{ bestSet.reps }}</div>
       </div>
+
+      <!-- e1RM over time -->
+      <E1RMChart v-if="isStrength && e1rmPoints.length >= 3" :points="e1rmPoints" />
 
       <div v-if="history.length === 0" class="detail__empty">
         Nog geen sessies gelogd voor deze oefening.
       </div>
 
-      <div v-for="session in history" :key="session.date" class="detail__session card">
+      <div v-for="session in visibleHistory" :key="session.date" class="detail__session card">
         <div class="detail__session-header">
           <span class="detail__session-date">{{ formatDate(session.date) }}</span>
           <span v-if="session.pain_scale !== null" class="detail__pain-badge">
@@ -65,6 +63,26 @@
           </tbody>
         </table>
       </div>
+
+      <button
+        v-if="history.length > HISTORY_CAP && !showAllHistory"
+        class="detail__load-more"
+        @click="showAllHistory = true"
+      >
+        Toon alle {{ history.length }} sessies <span class="detail__load-more-arrow">↓</span>
+      </button>
+
+      <!-- Persistent exercise notes (cue / AI export) -->
+      <div class="card detail__exercise-notes">
+        <div class="detail__section-label">Notities over deze oefening</div>
+        <textarea
+          v-model="exerciseNotes"
+          class="detail__notes-input"
+          placeholder="Bijv. techniek tips, blessure-aandachtspunten..."
+          rows="2"
+          @blur="saveExerciseNotes"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -74,6 +92,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import type { Exercise, ExerciseSet } from '@/types/fitness'
+import { epley1RM, roundE1RM } from '@/utils/e1rm'
+import E1RMChart, { type E1RMPoint } from '@/components/E1RMChart.vue'
 
 interface SessionHistory {
   date: string
@@ -81,6 +101,8 @@ interface SessionHistory {
   sessionNotes: string | null
   pain_scale: number | null
 }
+
+const HISTORY_CAP = 8
 
 const router = useRouter()
 const route = useRoute()
@@ -92,9 +114,44 @@ const exerciseNotes = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
 const saveError = ref<string | null>(null)
+const showAllHistory = ref(false)
 
 const exerciseName = computed(() => exercise.value?.name ?? '…')
 const isStrength = computed(() => exercise.value?.type === 'strength')
+
+const visibleHistory = computed(() =>
+  showAllHistory.value ? history.value : history.value.slice(0, HISTORY_CAP),
+)
+
+// Best set (highest e1RM) per session, oldest→newest handling done in the chart.
+const e1rmPoints = computed<E1RMPoint[]>(() => {
+  if (!isStrength.value) return []
+  const points: E1RMPoint[] = []
+  for (const session of history.value) {
+    let best: number | null = null
+    for (const s of session.sets) {
+      const e = epley1RM(s.weight_kg, s.reps)
+      if (e != null && (best == null || e > best)) best = e
+    }
+    if (best != null) points.push({ date: session.date, e1rm: best })
+  }
+  return points
+})
+
+// All-time best set — the headline PR, plus the weight×reps behind it.
+const bestSet = computed(() => {
+  if (!isStrength.value) return null
+  let best: { e1rm: number; weight: number; reps: number; date: string } | null = null
+  for (const session of history.value) {
+    for (const s of session.sets) {
+      const e = epley1RM(s.weight_kg, s.reps)
+      if (e != null && (best == null || e > best.e1rm)) {
+        best = { e1rm: e, weight: s.weight_kg!, reps: s.reps!, date: session.date }
+      }
+    }
+  }
+  return best
+})
 
 onMounted(async () => {
   loading.value = true
@@ -245,6 +302,52 @@ function formatDuration(seconds: number | null): string {
   border-radius: 20px;
   background: var(--color-primary-soft);
   color: var(--color-primary);
+}
+
+.detail__pr {
+  text-align: center;
+  padding: 18px;
+}
+
+.detail__pr .detail__section-label {
+  margin-bottom: 6px;
+}
+
+.detail__pr-value {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.detail__pr-unit {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+.detail__pr-sub {
+  font-size: 13px;
+  color: var(--color-text-2);
+  margin-top: 6px;
+}
+
+.detail__load-more {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.detail__load-more-arrow {
+  font-size: 13px;
 }
 
 .detail__section-label {
