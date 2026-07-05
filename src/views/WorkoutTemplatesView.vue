@@ -3,7 +3,7 @@
     <div class="wtpl__header">
       <button class="wtpl__back" @click="router.push('/workout')">‹</button>
       <div>
-        <div class="wtpl__supra">Fitness</div>
+        <div class="wtpl__supra">Fitness tracker</div>
         <h1 class="wtpl__title">Alle templates</h1>
       </div>
     </div>

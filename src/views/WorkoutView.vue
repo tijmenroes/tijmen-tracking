@@ -3,7 +3,7 @@
     <div class="wdash__header">
       <button class="wdash__back" @click="router.push('/')">‹</button>
       <div>
-        <div class="wdash__supra">Fitness</div>
+        <div class="wdash__supra">Fitness tracker</div>
         <h1 class="wdash__title">Workout</h1>
       </div>
     </div>

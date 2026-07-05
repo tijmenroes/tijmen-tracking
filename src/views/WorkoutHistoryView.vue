@@ -3,7 +3,7 @@
     <div class="whist__header">
       <button class="whist__back" @click="router.push('/workout')">‹</button>
       <div>
-        <div class="whist__supra">Fitness</div>
+        <div class="whist__supra">Fitness tracker</div>
         <h1 class="whist__title">Alle workouts</h1>
       </div>
     </div>

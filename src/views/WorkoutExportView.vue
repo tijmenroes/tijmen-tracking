@@ -3,7 +3,7 @@
     <div class="wexport__header">
       <button class="wexport__back" @click="router.push('/workout')">‹</button>
       <div>
-        <div class="wexport__supra">Fitness</div>
+        <div class="wexport__supra">Fitness tracker</div>
         <h1 class="wexport__title">Exporteer voor AI</h1>
       </div>
     </div>

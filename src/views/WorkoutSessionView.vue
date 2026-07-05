@@ -3,7 +3,7 @@
     <div class="workout__header">
       <button class="workout__back" @click="router.back()">‹</button>
       <div class="workout__header-text">
-        <div class="workout__supra">Fitness</div>
+        <div class="workout__supra">Fitness tracker</div>
         <h1 class="workout__title">{{ workout?.name || 'Workout' }}</h1>
         <div class="workout__date">{{ formattedDate }}</div>
       </div>

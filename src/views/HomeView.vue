@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <div class="home__header">
-      <div class="home__supra">Fitness</div>
+      <div class="home__supra">Fitness tracker</div>
       <h1 class="home__title">Overzicht</h1>
     </div>
 

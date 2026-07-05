@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.fitnessapp',
-  appName: 'Fitness',
+  appName: 'TT',
   webDir: 'dist',
   ios: {
     // Respect the notch / home indicator safe areas
