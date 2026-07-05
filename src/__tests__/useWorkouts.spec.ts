@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Session } from '@supabase/supabase-js'
 import { useAuthStore } from '@/stores/auth'
+import { useExercisesStore } from '@/stores/exercises'
 import { useWorkouts } from '@/composables/useWorkouts'
 
 const mockWorkoutInsertSingle = vi.fn()
@@ -57,6 +58,7 @@ describe('useWorkouts', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     useAuthStore().session = { user: { id: 'test-user-id' } } as Session
+    useExercisesStore().$patch({ exercises: [], loaded: true })
     vi.clearAllMocks()
   })
 
@@ -82,9 +84,12 @@ describe('useWorkouts', () => {
     expect(error.value).toBe('nope')
   })
 
-  it('loadWorkout fetches the workout and its exercises', async () => {
+  it('loadWorkout fetches the workout and attaches exercises from the store', async () => {
+    const squat = { id: 3, name: 'Squat', type: 'strength' as const, notes: null, created_by: null, created_at: 'x' }
+    useExercisesStore().$patch({ exercises: [squat], loaded: true })
+
     const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x' }
-    const we = [{ id: 20, workout_id: 7, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x', exercise: { id: 3, name: 'Squat' } }]
+    const we = [{ id: 20, workout_id: 7, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x' }]
     mockWorkoutSelectSingle.mockResolvedValue({ data: wk, error: null })
     mockWeOrder.mockResolvedValue({ data: we, error: null })
 
@@ -92,7 +97,7 @@ describe('useWorkouts', () => {
     await loadWorkout(7)
 
     expect(workout.value).toEqual(wk)
-    expect(workoutExercises.value).toEqual(we)
+    expect(workoutExercises.value).toEqual([{ ...we[0], exercise: squat }])
   })
 
   it('fetchRecentWorkouts maps the count and drops empty workouts', async () => {

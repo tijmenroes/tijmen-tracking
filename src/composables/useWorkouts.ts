@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useExercisesStore } from '@/stores/exercises'
 import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
 export function useWorkouts() {
   const authStore = useAuthStore()
+  const exercisesStore = useExercisesStore()
   const workout = ref<Workout | null>(null)
   const workoutExercises = ref<WorkoutExercise[]>([])
   const recentWorkouts = ref<WorkoutSummary[]>([])
@@ -290,28 +292,38 @@ export function useWorkouts() {
     return data as Workout
   }
 
+  function attachExercise(row: Omit<WorkoutExercise, 'exercise'>): WorkoutExercise {
+    return {
+      ...row,
+      exercise: exercisesStore.getById(row.exercise_id),
+    }
+  }
+
   async function fetchWorkoutExercises() {
     if (!workout.value) return
+    await exercisesStore.fetchExercises()
     const { data, error: err } = await supabase
       .from('workout_exercises')
-      .select('*, exercise:exercises(*)')
+      .select('*')
       .eq('workout_id', workout.value.id)
       .order('sort_order')
     if (err) { error.value = err.message; return }
-    workoutExercises.value = (data ?? []) as WorkoutExercise[]
+    workoutExercises.value = (data ?? []).map(attachExercise)
   }
 
   async function addExerciseToWorkout(exerciseId: number) {
     if (!workout.value) return null
+    await exercisesStore.fetchExercises()
     const sortOrder = workoutExercises.value.length
     const { data, error: err } = await supabase
       .from('workout_exercises')
       .insert({ workout_id: workout.value.id, exercise_id: exerciseId, sort_order: sortOrder })
-      .select('*, exercise:exercises(*)')
+      .select('*')
       .single()
     if (err) { error.value = err.message; return null }
-    workoutExercises.value.push(data as WorkoutExercise)
-    return data as WorkoutExercise
+    const row = attachExercise(data)
+    workoutExercises.value.push(row)
+    return row
   }
 
   async function removeExerciseFromWorkout(workoutExerciseId: number) {

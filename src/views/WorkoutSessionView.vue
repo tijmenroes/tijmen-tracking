@@ -120,8 +120,8 @@ const formattedDate = computed(() => {
 })
 
 onMounted(async () => {
-  await loadWorkout(Number(route.params.id))
   await Promise.all([fetchExercises(), fetchTags()])
+  await loadWorkout(Number(route.params.id))
 })
 
 async function handleConfirmExercises(selected: Exercise[]) {

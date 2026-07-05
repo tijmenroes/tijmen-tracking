@@ -112,5 +112,9 @@ export const useExercisesStore = defineStore('exercises', () => {
     exercises.value = exercises.value.filter(e => e.id !== id)
   }
 
-  return { exercises, loading, error, loaded, fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise }
+  function getById(id: number): Exercise | undefined {
+    return exercises.value.find((e) => e.id === id)
+  }
+
+  return { exercises, loading, error, loaded, fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise, getById }
 })

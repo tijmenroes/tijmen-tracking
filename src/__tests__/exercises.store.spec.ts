@@ -115,6 +115,19 @@ describe('exercises store', () => {
     expect(store.exercises.map((e) => e.name)).toEqual(['Ab Wheel', 'Bench'])
   })
 
+  it('getById returns a cached exercise by id', async () => {
+    mockExercisesOrder.mockResolvedValue({
+      data: [{ id: 9, name: 'Pull-up', type: 'strength', notes: null, created_by: null, created_at: 'x', tags: [] }],
+      error: null,
+    })
+
+    const store = useExercisesStore()
+    await store.fetchExercises()
+
+    expect(store.getById(9)?.name).toBe('Pull-up')
+    expect(store.getById(999)).toBeUndefined()
+  })
+
   it('updateExerciseTags replaces the exercise tag set', async () => {
     mockExercisesOrder.mockResolvedValue({
       data: [{ id: 7, name: 'Row', type: 'strength', notes: null, created_by: null, created_at: 'x', tags: [] }],
