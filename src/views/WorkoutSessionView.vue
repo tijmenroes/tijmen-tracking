@@ -40,7 +40,29 @@
       <button class="workout__add-btn" @click="showPicker = true">
         + Oefening toevoegen
       </button>
+
+      <div v-if="workout" class="workout__footer">
+        <p class="workout__save-hint">
+          Lege sets worden bij het opslaan automatisch verwijderd.
+        </p>
+        <button class="workout__save-btn" :disabled="saving" @click="handleSave">
+          {{ saving ? 'Opslaan…' : 'Workout opslaan' }}
+        </button>
+        <button class="workout__delete-btn" type="button" @click="showDeleteConfirm = true">
+          Workout verwijderen
+        </button>
+      </div>
     </div>
+
+    <ConfirmModal
+      v-if="showDeleteConfirm"
+      title="Workout verwijderen"
+      message="Weet je zeker dat je deze workout wilt verwijderen? Alle ingevulde sets gaan verloren."
+      confirm-label="Verwijderen"
+      danger
+      @confirm="handleDelete"
+      @cancel="showDeleteConfirm = false"
+    />
 
     <ExercisePicker
       v-if="showPicker"
@@ -67,6 +89,7 @@ import { useRouter, useRoute } from 'vue-router'
 import WorkoutExerciseCard from '@/components/WorkoutExerciseCard.vue'
 import ExercisePicker from '@/components/ExercisePicker.vue'
 import WorkoutEditModal from '@/components/WorkoutEditModal.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
 import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
 import { useExercises } from '@/composables/useExercises'
@@ -75,13 +98,15 @@ import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
 const route = useRoute()
-const { workout, workoutExercises, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise } = useWorkouts()
+const { workout, workoutExercises, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
 const { exercises, loading: exercisesLoading, fetchExercises } = useExercises()
 const { tags, fetchTags } = useTags()
 const { createTemplateFromWorkout } = useWorkoutTemplates()
 
 const showPicker = ref(false)
 const showEditModal = ref(false)
+const showDeleteConfirm = ref(false)
+const saving = ref(false)
 
 const formattedDate = computed(() => {
   if (!workout.value) return ''
@@ -103,6 +128,27 @@ async function handleConfirmExercises(selected: Exercise[]) {
 
 async function handleRemoveExercise(id: number) {
   await removeExerciseFromWorkout(id)
+}
+
+async function handleSave() {
+  if (!workout.value || saving.value) return
+  saving.value = true
+  const result = await saveWorkout(workout.value.id)
+  saving.value = false
+  if (!result) return
+  if (result.deleted) {
+    router.push('/workout')
+  } else {
+    router.push(`/workout/history/${route.params.id}`)
+  }
+}
+
+async function handleDelete() {
+  if (!workout.value) return
+  const id = workout.value.id
+  showDeleteConfirm.value = false
+  await deleteWorkout(id)
+  if (!error.value) router.push('/workout')
 }
 
 async function handleSaveWorkout(payload: { name: string | null; date: string; saveAsTemplate: boolean }) {
@@ -221,5 +267,49 @@ async function handleSaveWorkout(payload: { name: string | null; date: string; s
   cursor: pointer;
   font-family: var(--font);
   box-shadow: var(--shadow-card);
+}
+
+.workout__footer {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.workout__save-hint {
+  font-size: 13px;
+  color: var(--color-text-2);
+  text-align: center;
+  margin: 0;
+}
+
+.workout__save-btn {
+  width: 100%;
+  height: 52px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.workout__save-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.workout__delete-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-up);
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 8px 12px;
 }
 </style>

@@ -143,8 +143,8 @@ describe('useWorkoutTemplates', () => {
       },
     ]
     const workouts = [
-      { id: 10, user_id: 'u', date: '2026-06-01', name: null, notes: null, template_id: 9, created_at: 'a', exercise_count: 1 },
-      { id: 11, user_id: 'u', date: '2026-06-05', name: null, notes: null, template_id: 9, created_at: 'b', exercise_count: 1 },
+      { id: 10, user_id: 'u', date: '2026-06-01', name: null, notes: null, template_id: 9, status: 'saved' as const, created_at: 'a', exercise_count: 1 },
+      { id: 11, user_id: 'u', date: '2026-06-05', name: null, notes: null, template_id: 9, status: 'saved' as const, created_at: 'b', exercise_count: 1 },
     ]
 
     mockWeInIn.mockResolvedValue({

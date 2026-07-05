@@ -7,7 +7,7 @@ const mockWorkoutUpdateSingle = vi.fn()
 const mockWorkoutDeleteEq = vi.fn()
 const mockWorkoutRecentLimit = vi.fn()
 const mockWorkoutPageRange = vi.fn()
-const mockWorkoutTemplateEq = vi.fn()
+const mockWorkoutTemplateOrder = vi.fn()
 const mockWeOrder = vi.fn()
 const mockWeInsert = vi.fn()
 const mockTeOrder = vi.fn()
@@ -22,9 +22,13 @@ vi.mock('@/lib/supabase', () => ({
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
+              // level 1: after .eq('id') (load) or .eq('user_id')
               single: mockWorkoutSelectSingle,
-              eq: vi.fn(() => ({ order: mockWorkoutTemplateEq })),
-              order: vi.fn(() => ({ limit: mockWorkoutRecentLimit, range: mockWorkoutPageRange })),
+              eq: vi.fn(() => ({
+                // level 2: after .eq('status') (recent/page) or .eq('template_id')
+                order: vi.fn(() => ({ limit: mockWorkoutRecentLimit, range: mockWorkoutPageRange })),
+                eq: vi.fn(() => ({ order: mockWorkoutTemplateOrder })),
+              })),
             })),
           })),
           insert: vi.fn(() => ({ select: vi.fn(() => ({ single: mockWorkoutInsertSingle })) })),
@@ -157,7 +161,7 @@ describe('useWorkouts', () => {
   })
 
   it('fetchWorkoutsByTemplate returns workouts linked to the template', async () => {
-    mockWorkoutTemplateEq.mockResolvedValue({
+    mockWorkoutTemplateOrder.mockResolvedValue({
       data: [
         { id: 12, user_id: 'test-user-id', date: '2026-07-04', name: 'Push', notes: null, template_id: 3, created_at: 'x', workout_exercises: [{ count: 4 }] },
       ],

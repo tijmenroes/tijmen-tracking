@@ -22,6 +22,7 @@ export interface Workout {
   name: string | null
   notes: string | null
   template_id: number | null
+  status: 'active' | 'saved'
   created_at: string
 }
 

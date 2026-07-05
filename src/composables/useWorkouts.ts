@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
-import type { Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
+import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
 export function useWorkouts() {
   const workout = ref<Workout | null>(null)
@@ -8,6 +8,7 @@ export function useWorkouts() {
   const recentWorkouts = ref<WorkoutSummary[]>([])
   const workoutsPage = ref<WorkoutSummary[]>([])
   const totalWorkouts = ref(0)
+  const activeWorkout = ref<WorkoutSummary | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -21,6 +22,16 @@ export function useWorkouts() {
         exercise_count: workout_exercises?.[0]?.count ?? 0,
       }))
       .filter((w) => w.exercise_count > 0)
+  }
+
+  /** A set counts as "empty" when none of its metric fields were filled in. */
+  function isEmptySet(s: Pick<ExerciseSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'distance_km'>): boolean {
+    return (
+      s.weight_kg == null &&
+      s.reps == null &&
+      s.duration_seconds == null &&
+      s.distance_km == null
+    )
   }
 
   function todayIso(): string {
@@ -55,7 +66,13 @@ export function useWorkouts() {
       .insert(insertPayload)
       .select()
       .single()
-    if (err) { error.value = err.message; return null }
+    if (err) {
+      // Unique index one_active_workout_per_user → a draft is still open.
+      error.value = err.code === '23505'
+        ? 'Je hebt nog een actieve workout. Sla die eerst op of verwijder hem.'
+        : err.message
+      return null
+    }
     workout.value = created
     workoutExercises.value = []
 
@@ -111,6 +128,7 @@ export function useWorkouts() {
       .from('workouts')
       .select('*, workout_exercises!inner(count)')
       .eq('user_id', user.id)
+      .eq('status', 'saved')
       .order('created_at', { ascending: false })
       .limit(limit)
     loading.value = false
@@ -130,6 +148,7 @@ export function useWorkouts() {
       .from('workouts')
       .select('*, workout_exercises!inner(count)', { count: 'exact' })
       .eq('user_id', user.id)
+      .eq('status', 'saved')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
     loading.value = false
@@ -151,10 +170,101 @@ export function useWorkouts() {
       .select('*, workout_exercises!inner(count)')
       .eq('user_id', user.id)
       .eq('template_id', templateId)
+      .eq('status', 'saved')
       .order('created_at', { ascending: false })
     loading.value = false
     if (err) { error.value = err.message; return }
     templateWorkouts.value = toSummaries((data ?? []) as SummaryRow[])
+  }
+
+  /**
+   * Fetch the user's current active (draft) workout, if any.
+   * There can be at most one at a time (enforced by a unique index).
+   */
+  async function fetchActiveWorkout(): Promise<WorkoutSummary | null> {
+    error.value = null
+    const { data: userData } = await supabase.auth.getUser()
+    const user = userData.user
+    if (!user) return null
+
+    const { data, error: err } = await supabase
+      .from('workouts')
+      .select('*, workout_exercises(count)')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (err) { error.value = err.message; return null }
+    if (!data) { activeWorkout.value = null; return null }
+
+    const { workout_exercises, ...rest } = data as SummaryRow
+    activeWorkout.value = { ...rest, exercise_count: workout_exercises?.[0]?.count ?? 0 }
+    return activeWorkout.value
+  }
+
+  /**
+   * Finish a draft workout: strip empty sets, drop exercises that ended up
+   * with no logged data, and mark the workout as saved so it enters history.
+   * When nothing at all was logged the workout is deleted instead.
+   * Returns { deleted } so the caller can route accordingly, or null on error.
+   */
+  async function saveWorkout(id: number): Promise<{ deleted: boolean } | null> {
+    error.value = null
+
+    const { data: wes, error: weErr } = await supabase
+      .from('workout_exercises')
+      .select('id, notes, pain_scale, exercise_sets(*)')
+      .eq('workout_id', id)
+    if (weErr) { error.value = weErr.message; return null }
+
+    for (const we of wes ?? []) {
+      const setsList = (we.exercise_sets ?? []) as ExerciseSet[]
+      const emptyIds = setsList.filter(isEmptySet).map((s) => s.id)
+      if (emptyIds.length) {
+        const { error: delErr } = await supabase
+          .from('exercise_sets')
+          .delete()
+          .in('id', emptyIds)
+        if (delErr) { error.value = delErr.message; return null }
+      }
+
+      const remainingSets = setsList.length - emptyIds.length
+      const hasNotes = typeof we.notes === 'string' && we.notes.trim().length > 0
+      const hasData = remainingSets > 0 || hasNotes || we.pain_scale != null
+      if (!hasData) {
+        const { error: weDelErr } = await supabase
+          .from('workout_exercises')
+          .delete()
+          .eq('id', we.id)
+        if (weDelErr) { error.value = weDelErr.message; return null }
+      }
+    }
+
+    const { count, error: cntErr } = await supabase
+      .from('workout_exercises')
+      .select('id', { count: 'exact', head: true })
+      .eq('workout_id', id)
+    if (cntErr) { error.value = cntErr.message; return null }
+
+    if (!count) {
+      const { error: delWErr } = await supabase.from('workouts').delete().eq('id', id)
+      if (delWErr) { error.value = delWErr.message; return null }
+      if (workout.value?.id === id) { workout.value = null; workoutExercises.value = [] }
+      if (activeWorkout.value?.id === id) activeWorkout.value = null
+      return { deleted: true }
+    }
+
+    const { data, error: updErr } = await supabase
+      .from('workouts')
+      .update({ status: 'saved' })
+      .eq('id', id)
+      .select()
+      .single()
+    if (updErr) { error.value = updErr.message; return null }
+    if (workout.value?.id === id) workout.value = data as Workout
+    if (activeWorkout.value?.id === id) activeWorkout.value = null
+    return { deleted: false }
   }
 
   async function deleteWorkout(id: number) {
@@ -164,6 +274,7 @@ export function useWorkouts() {
       workout.value = null
       workoutExercises.value = []
     }
+    if (activeWorkout.value?.id === id) activeWorkout.value = null
   }
 
   async function updateWorkout(
@@ -231,6 +342,7 @@ export function useWorkouts() {
     recentWorkouts,
     workoutsPage,
     totalWorkouts,
+    activeWorkout,
     templateWorkouts,
     loading,
     error,
@@ -239,6 +351,8 @@ export function useWorkouts() {
     fetchRecentWorkouts,
     fetchWorkoutsPage,
     fetchWorkoutsByTemplate,
+    fetchActiveWorkout,
+    saveWorkout,
     deleteWorkout,
     updateWorkout,
     addExerciseToWorkout,

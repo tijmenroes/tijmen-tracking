@@ -9,7 +9,32 @@
     </div>
 
     <div class="wdash__content">
-      <button class="wdash__start" :disabled="starting" @click="handleStart">
+      <!-- Active (unsaved) workout -->
+      <div v-if="activeWorkout" class="wdash__active">
+        <div class="wdash__active-head">
+          <span class="wdash__active-badge">Actief</span>
+          <span class="wdash__active-title">
+            {{ activeWorkout.name || formatDate(activeWorkout.date) }}
+          </span>
+        </div>
+        <p class="wdash__active-text">
+          Je hebt een workout die nog niet is opgeslagen. Rond deze eerst af
+          voordat je een nieuwe start.
+        </p>
+        <button
+          class="wdash__active-btn"
+          @click="router.push(`/workout/session/${activeWorkout.id}`)"
+        >
+          Verder met deze workout ›
+        </button>
+      </div>
+
+      <button
+        v-else
+        class="wdash__start"
+        :disabled="starting"
+        @click="handleStart"
+      >
         {{ starting ? 'Bezig…' : '+ Workout starten' }}
       </button>
       <div v-if="error" class="wdash__error">{{ error }}</div>
@@ -126,7 +151,7 @@ import { useWorkouts } from '@/composables/useWorkouts'
 import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
 
 const router = useRouter()
-const { recentWorkouts, loading, error, startWorkout, fetchRecentWorkouts } = useWorkouts()
+const { recentWorkouts, activeWorkout, loading, error, startWorkout, fetchRecentWorkouts, fetchActiveWorkout } = useWorkouts()
 const { recentTemplates, loading: templatesLoading, fetchRecentTemplates, createTemplate } = useWorkoutTemplates()
 
 const starting = ref(false)
@@ -134,10 +159,11 @@ const showNewTemplate = ref(false)
 const newTemplateName = ref('')
 
 onMounted(async () => {
-  await Promise.all([fetchRecentWorkouts(), fetchRecentTemplates()])
+  await Promise.all([fetchActiveWorkout(), fetchRecentWorkouts(), fetchRecentTemplates()])
 })
 
 async function handleStart() {
+  if (activeWorkout.value) return
   starting.value = true
   const workout = await startWorkout()
   starting.value = false
@@ -145,6 +171,10 @@ async function handleStart() {
 }
 
 async function handleStartFromTemplate(templateId: number) {
+  if (activeWorkout.value) {
+    error.value = 'Rond eerst je actieve workout af voordat je een nieuwe start.'
+    return
+  }
   starting.value = true
   const workout = await startWorkout({ templateId })
   starting.value = false
@@ -231,6 +261,60 @@ function formatDate(dateStr: string): string {
 .wdash__start:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.wdash__active {
+  background: var(--color-card);
+  border: 1px solid var(--color-primary);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wdash__active-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wdash__active-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.wdash__active-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-transform: capitalize;
+}
+
+.wdash__active-text {
+  font-size: 13px;
+  color: var(--color-text-2);
+  margin: 0;
+}
+
+.wdash__active-btn {
+  width: 100%;
+  height: 48px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font);
 }
 
 .wdash__error {

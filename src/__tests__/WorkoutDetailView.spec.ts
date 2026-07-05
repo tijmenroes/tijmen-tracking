@@ -105,6 +105,7 @@ describe('WorkoutDetailView', () => {
       name: 'Push A',
       notes: null,
       template_id: null,
+      status: 'saved',
       created_at: 'x',
     }
     workoutExercises.value = [weSquat, weBench]
