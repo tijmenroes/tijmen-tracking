@@ -118,7 +118,7 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProfileStore } from '@/stores/profile'
 import { useExercisesStore } from '@/stores/exercises'
-import { useTags } from '@/composables/useTags'
+import { useTagsStore } from '@/stores/tags'
 import { filterExercises } from '@/utils/exerciseSearch'
 import TagSelector from '@/components/TagSelector.vue'
 import ExerciseFilterBar from '@/components/ExerciseFilterBar.vue'
@@ -132,7 +132,9 @@ const { isAdmin } = storeToRefs(profileStore)
 const exercisesStore = useExercisesStore()
 const { exercises, loading, error } = storeToRefs(exercisesStore)
 const { fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise } = exercisesStore
-const { tags, fetchTags, createTag } = useTags()
+const tagsStore = useTagsStore()
+const { tags } = storeToRefs(tagsStore)
+const { fetchTags, createTag } = tagsStore
 
 const newName = ref('')
 const newType = ref<Exercise['type']>('strength')

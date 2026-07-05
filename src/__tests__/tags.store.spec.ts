@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useTags } from '@/composables/useTags'
+import { createPinia, setActivePinia } from 'pinia'
+import { useTagsStore } from '@/stores/tags'
 
 const mockSelectOrder = vi.fn()
 const mockInsertSingle = vi.fn()
@@ -13,31 +14,39 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
-describe('useTags', () => {
+describe('tags store', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('fetchTags populates tags on success', async () => {
+  it('fetchTags populates tags and caches', async () => {
     const mockData = [
       { id: 1, name: 'back', created_at: '2024-01-01T00:00:00Z' },
       { id: 2, name: 'biceps', created_at: '2024-01-01T00:00:00Z' },
     ]
     mockSelectOrder.mockResolvedValue({ data: mockData, error: null })
 
-    const { tags, fetchTags } = useTags()
-    await fetchTags()
+    const store = useTagsStore()
+    await store.fetchTags()
 
-    expect(tags.value).toEqual(mockData)
+    expect(store.tags).toEqual(mockData)
+    expect(store.loaded).toBe(true)
+
+    await store.fetchTags()
+    expect(mockSelectOrder).toHaveBeenCalledTimes(1)
+
+    await store.fetchTags(true)
+    expect(mockSelectOrder).toHaveBeenCalledTimes(2)
   })
 
   it('fetchTags sets error on failure', async () => {
     mockSelectOrder.mockResolvedValue({ data: null, error: { message: 'boom' } })
 
-    const { error, fetchTags } = useTags()
-    await fetchTags()
+    const store = useTagsStore()
+    await store.fetchTags()
 
-    expect(error.value).toBe('boom')
+    expect(store.error).toBe('boom')
   })
 
   it('createTag inserts and keeps the list sorted', async () => {
@@ -48,11 +57,11 @@ describe('useTags', () => {
     const newTag = { id: 2, name: 'abs', created_at: '2024-01-02T00:00:00Z' }
     mockInsertSingle.mockResolvedValue({ data: newTag, error: null })
 
-    const { tags, fetchTags, createTag } = useTags()
-    await fetchTags()
-    const result = await createTag('abs')
+    const store = useTagsStore()
+    await store.fetchTags()
+    const result = await store.createTag('abs')
 
     expect(result).toEqual(newTag)
-    expect(tags.value.map((t) => t.name)).toEqual(['abs', 'chest'])
+    expect(store.tags.map((t) => t.name)).toEqual(['abs', 'chest'])
   })
 })

@@ -78,7 +78,7 @@ import ExercisePicker from '@/components/ExercisePicker.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import { useTemplatesStore } from '@/stores/templates'
 import { useExercisesStore } from '@/stores/exercises'
-import { useTags } from '@/composables/useTags'
+import { useTagsStore } from '@/stores/tags'
 import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
@@ -97,7 +97,9 @@ const {
 const exercisesStore = useExercisesStore()
 const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
 const { fetchExercises } = exercisesStore
-const { tags, fetchTags } = useTags()
+const tagsStore = useTagsStore()
+const { tags } = storeToRefs(tagsStore)
+const { fetchTags } = tagsStore
 
 const showPicker = ref(false)
 const showRename = ref(false)
@@ -327,6 +329,7 @@ async function onDragHandlePointerUp(event: PointerEvent) {
 
 .tedit__add-btn {
   width: 100%;
+  margin-top: 24px;
   padding: 15px;
   background: var(--color-card);
   border: 2px dashed var(--color-hairline);

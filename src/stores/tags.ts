@@ -1,13 +1,21 @@
+import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Tag } from '@/types/fitness'
 
-export function useTags() {
+/**
+ * Central store for exercise tags. Tags are shared across the exercises screen,
+ * template editor and workout session, so the list is cached after the first
+ * fetch. Mutations keep the cache in sync in place.
+ */
+export const useTagsStore = defineStore('tags', () => {
   const tags = ref<Tag[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const loaded = ref(false)
 
-  async function fetchTags() {
+  async function fetchTags(force = false) {
+    if (loaded.value && !force) return
     loading.value = true
     error.value = null
     const { data, error: err } = await supabase
@@ -17,6 +25,7 @@ export function useTags() {
     loading.value = false
     if (err) { error.value = err.message; return }
     tags.value = data ?? []
+    loaded.value = true
   }
 
   async function createTag(name: string) {
@@ -31,5 +40,5 @@ export function useTags() {
     return data as Tag
   }
 
-  return { tags, loading, error, fetchTags, createTag }
-}
+  return { tags, loading, error, loaded, fetchTags, createTag }
+})

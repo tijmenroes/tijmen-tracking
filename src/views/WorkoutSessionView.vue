@@ -94,7 +94,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
 import { useTemplatesStore } from '@/stores/templates'
 import { useExercisesStore } from '@/stores/exercises'
-import { useTags } from '@/composables/useTags'
+import { useTagsStore } from '@/stores/tags'
 import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
@@ -103,7 +103,9 @@ const { workout, workoutExercises, loading, error, loadWorkout, updateWorkout, a
 const exercisesStore = useExercisesStore()
 const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
 const { fetchExercises } = exercisesStore
-const { tags, fetchTags } = useTags()
+const tagsStore = useTagsStore()
+const { tags } = storeToRefs(tagsStore)
+const { fetchTags } = tagsStore
 const { createTemplateFromWorkout } = useTemplatesStore()
 
 const showPicker = ref(false)
