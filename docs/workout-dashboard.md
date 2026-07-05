@@ -27,6 +27,7 @@ te testen is.
   - `startWorkout({ templateId })` kopieert oefeningen; `fetchWorkoutsByTemplate` voor template-historie.
   - Dashboard: templates-sectie (klik = start workout), `WorkoutTemplatesView`, `TemplateDetailView`, `TemplateEditView`.
   - `WorkoutEditModal`: checkbox "Opslaan als template" (standaard uit).
+  - Template-detail: per oefening sets van **eerste en laatste** workout met dit template (kg-reps tabel).
 - [ ] **Fase 6 — Template volume & analytics** (uitgesteld)
 
 ## Fase 6 — Template volume (uitgesteld)
@@ -46,8 +47,9 @@ In de Supabase SQL editor, in volgorde: `migration_004_workout_sessions.sql` (fa
 
 ## Bekende aandachtspunten
 
-- "Vorige keer"-referentie (`useExerciseSets.fetchPreviousSets`, `useExportWorkout`) filtert op
-  `workout.date < vandaag`, dus eerdere sessies van dezelfde dag tellen niet mee. Later te verfijnen.
+- "Vorige keer"-referentie (`useExerciseSets.fetchPreviousSets`) zoekt de meest recente
+  eerdere sessie voor dezelfde oefening (exclusief huidige workout), niet per template.
+- `useExportWorkout` filtert historie nog op `workout.date < huidige datum` (export-context).
 - Geen "afronden"-status; elke workout blijft bewerkbaar via het sessiescherm.
 
 Workout-tab → dashboard + losse actieve-workout flow

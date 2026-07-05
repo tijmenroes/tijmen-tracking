@@ -31,7 +31,6 @@
           v-for="we in workoutExercises"
           :key="we.id"
           :workout-exercise="we"
-          :workout-date="workout?.date ?? ''"
           :on-update-extra="updateWorkoutExercise"
           @remove="handleRemoveExercise"
           @detail="router.push(`/exercises/${we.exercise_id}/detail`)"

@@ -46,6 +46,18 @@ export interface TemplateSummary extends WorkoutTemplate {
   exercise_count: number
 }
 
+export interface TemplateExerciseProgressRow {
+  date: string
+  set_number: number
+  metric: string
+}
+
+export interface TemplateExerciseProgress {
+  exercise_id: number
+  exercise_name: string
+  rows: TemplateExerciseProgressRow[]
+}
+
 export interface WorkoutSummary extends Workout {
   exercise_count: number
 }

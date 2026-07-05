@@ -17,8 +17,27 @@
         Nog geen oefeningen. Voeg er een toe!
       </div>
 
-      <ul v-else class="tedit__list card">
-        <li v-for="te in templateExercises" :key="te.id" class="tedit__item">
+      <ul v-else ref="listRef" class="tedit__list card">
+        <li
+          v-for="(te, idx) in templateExercises"
+          :key="te.id"
+          class="tedit__item"
+          :class="{
+            'tedit__item--dragging': dragFromIndex === idx,
+            'tedit__item--over': dragOverIndex === idx && dragFromIndex !== null && dragFromIndex !== idx,
+          }"
+        >
+          <button
+            type="button"
+            class="tedit__drag"
+            aria-label="Verslepen om volgorde te wijzigen"
+            @pointerdown="onDragHandlePointerDown($event, idx)"
+            @pointermove="onDragHandlePointerMove"
+            @pointerup="onDragHandlePointerUp"
+            @pointercancel="onDragHandlePointerUp"
+          >
+            ⠿
+          </button>
           <span class="tedit__item-name">{{ te.exercise?.name ?? 'Oefening' }}</span>
           <button class="tedit__item-del" type="button" title="Verwijderen" @click="handleRemove(te.id)">×</button>
         </li>
@@ -74,6 +93,7 @@ const {
   renameTemplate,
   addExerciseToTemplate,
   removeExerciseFromTemplate,
+  reorderTemplateExercises,
 } = useWorkoutTemplates()
 const { exercises, loading: exercisesLoading, fetchExercises } = useExercises()
 const { tags, fetchTags } = useTags()
@@ -81,6 +101,9 @@ const { tags, fetchTags } = useTags()
 const showPicker = ref(false)
 const showRename = ref(false)
 const renameName = ref('')
+const listRef = ref<HTMLElement | null>(null)
+const dragFromIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
 
 onMounted(async () => {
   await loadTemplate(templateId.value)
@@ -107,6 +130,40 @@ async function handleConfirmExercises(selected: Exercise[]) {
 
 async function handleRemove(templateExerciseId: number) {
   await removeExerciseFromTemplate(templateExerciseId)
+}
+
+function dropIndexFromY(clientY: number): number {
+  const items = listRef.value?.querySelectorAll('.tedit__item')
+  if (!items?.length) return 0
+  for (let i = 0; i < items.length; i++) {
+    const rect = items[i]!.getBoundingClientRect()
+    if (clientY < rect.top + rect.height / 2) return i
+  }
+  return items.length - 1
+}
+
+function onDragHandlePointerDown(event: PointerEvent, index: number) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  dragFromIndex.value = index
+  dragOverIndex.value = index
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function onDragHandlePointerMove(event: PointerEvent) {
+  if (dragFromIndex.value === null) return
+  dragOverIndex.value = dropIndexFromY(event.clientY)
+}
+
+async function onDragHandlePointerUp(event: PointerEvent) {
+  if (dragFromIndex.value === null) return
+  const from = dragFromIndex.value
+  const to = dragOverIndex.value ?? from
+  dragFromIndex.value = null
+  dragOverIndex.value = null
+  ;(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)
+  if (from !== to) {
+    await reorderTemplateExercises(from, to)
+  }
 }
 </script>
 
@@ -213,6 +270,36 @@ async function handleRemove(templateExerciseId: number) {
 
 .tedit__item:last-child {
   border-bottom: none;
+}
+
+.tedit__item--dragging {
+  opacity: 0.55;
+}
+
+.tedit__item--over {
+  box-shadow: inset 0 2px 0 var(--color-primary);
+}
+
+.tedit__drag {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tedit__drag:active {
+  cursor: grabbing;
 }
 
 .tedit__item-name {

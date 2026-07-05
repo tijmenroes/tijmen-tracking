@@ -21,34 +21,48 @@
       </button>
 
       <section class="tdetail__section">
-        <h2 class="tdetail__section-title">Oefeningen</h2>
-        <ul v-if="templateExercises.length" class="tdetail__ex-list card">
-          <li v-for="te in templateExercises" :key="te.id" class="tdetail__ex-item">
-            {{ te.exercise?.name ?? 'Oefening' }}
-          </li>
-        </ul>
-        <p v-else class="tdetail__muted-inline">Nog geen oefeningen in deze template.</p>
-      </section>
-
-      <section class="tdetail__section">
         <h2 class="tdetail__section-title">Workouts met dit template</h2>
-        <div v-if="historyLoading" class="tdetail__muted-inline">Laden…</div>
+        <p v-if="templateWorkouts.length > 0" class="tdetail__section-hint">
+          Eerste en laatste keer per oefening ({{ templateWorkouts.length }}
+          {{ templateWorkouts.length === 1 ? 'workout' : 'workouts' }}).
+        </p>
+
+        <div v-if="progressLoading" class="tdetail__muted-inline">Laden…</div>
         <div v-else-if="templateWorkouts.length === 0" class="tdetail__muted-inline">
           Nog geen workouts gestart vanaf dit template.
         </div>
-        <ul v-else class="tdetail__history card">
-          <li
-            v-for="w in templateWorkouts"
-            :key="w.id"
-            class="tdetail__history-item"
-            @click="router.push(`/workout/history/${w.id}`)"
+        <div v-else-if="templateExercises.length === 0" class="tdetail__muted-inline">
+          Voeg oefeningen toe aan dit template.
+        </div>
+
+        <div v-else class="tdetail__progress">
+          <div
+            v-for="item in exerciseProgress"
+            :key="item.exercise_id"
+            class="tdetail__progress-card card"
           >
-            <span class="tdetail__history-name">{{ w.name || formatDate(w.date) }}</span>
-            <span class="tdetail__history-sub">
-              {{ formatDate(w.date) }} · {{ w.exercise_count }} oefeningen
-            </span>
-          </li>
-        </ul>
+            <h3 class="tdetail__progress-name">{{ item.exercise_name }}</h3>
+            <div v-if="item.rows.length === 0" class="tdetail__progress-empty">
+              Nog geen sets gelogd.
+            </div>
+            <table v-else class="tdetail__table">
+              <thead>
+                <tr>
+                  <th>Datum</th>
+                  <th>Set</th>
+                  <th>Kg-reps</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, idx) in item.rows" :key="idx">
+                  <td>{{ row.date }}</td>
+                  <td>{{ row.set_number }}</td>
+                  <td>{{ row.metric }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <button class="tdetail__delete" type="button" @click="showDeleteConfirm = true">
@@ -75,20 +89,42 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
 import { useWorkouts } from '@/composables/useWorkouts'
 
+import type { TemplateExerciseProgress } from '@/types/fitness'
+
 const router = useRouter()
 const route = useRoute()
 const templateId = computed(() => Number(route.params.id))
 
-const { template, templateExercises, loading, error, loadTemplate, deleteTemplate } = useWorkoutTemplates()
-const { templateWorkouts, loading: historyLoading, startWorkout, fetchWorkoutsByTemplate } = useWorkouts()
+const {
+  template,
+  templateExercises,
+  loading,
+  error,
+  loadTemplate,
+  deleteTemplate,
+  fetchTemplateExerciseProgress,
+} = useWorkoutTemplates()
+const { templateWorkouts, startWorkout, fetchWorkoutsByTemplate } = useWorkouts()
 
 const starting = ref(false)
 const showDeleteConfirm = ref(false)
+const progressLoading = ref(false)
+const exerciseProgress = ref<TemplateExerciseProgress[]>([])
 
 onMounted(async () => {
   await loadTemplate(templateId.value)
   await fetchWorkoutsByTemplate(templateId.value)
+  await loadProgress()
 })
+
+async function loadProgress() {
+  progressLoading.value = true
+  exerciseProgress.value = await fetchTemplateExerciseProgress(
+    templateExercises.value,
+    templateWorkouts.value,
+  )
+  progressLoading.value = false
+}
 
 async function handleStart() {
   starting.value = true
@@ -101,11 +137,6 @@ async function handleDelete() {
   showDeleteConfirm.value = false
   await deleteTemplate(templateId.value)
   if (!error.value) router.push('/workout/templates')
-}
-
-function formatDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y!, m! - 1, d!).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 </script>
 
@@ -217,7 +248,58 @@ function formatDate(dateStr: string): string {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-text-3);
-  margin: 8px 0 10px;
+  margin: 8px 0 6px;
+}
+
+.tdetail__section-hint {
+  font-size: 13px;
+  color: var(--color-text-2);
+  margin: 0 0 12px;
+}
+
+.tdetail__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tdetail__progress-card {
+  padding: 16px 18px;
+}
+
+.tdetail__progress-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 10px;
+}
+
+.tdetail__progress-empty {
+  font-size: 13px;
+  color: var(--color-text-3);
+}
+
+.tdetail__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.tdetail__table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-3);
+  padding: 0 8px 8px 0;
+}
+
+.tdetail__table td {
+  padding: 5px 8px 5px 0;
+  color: var(--color-text);
+  border-top: 1px solid var(--color-hairline);
+  font-variant-numeric: tabular-nums;
 }
 
 .card {
@@ -225,56 +307,6 @@ function formatDate(dateStr: string): string {
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   overflow: hidden;
-}
-
-.tdetail__ex-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.tdetail__ex-item {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--color-hairline);
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-.tdetail__ex-item:last-child {
-  border-bottom: none;
-}
-
-.tdetail__history {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.tdetail__history-item {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--color-hairline);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.tdetail__history-item:last-child {
-  border-bottom: none;
-}
-
-.tdetail__history-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text);
-  text-transform: capitalize;
-}
-
-.tdetail__history-sub {
-  font-size: 13px;
-  color: var(--color-text-2);
-  text-transform: capitalize;
 }
 
 .tdetail__delete {

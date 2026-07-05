@@ -19,22 +19,22 @@ export function useExerciseSets() {
   }
 
   /**
-   * Fetch sets from the most recent previous workout that included this exercise.
-   * Used to show the user what they did last time as a reference.
+   * Fetch sets from the most recent previous workout session that included this exercise.
+   * Excludes the current workout (supports multiple sessions per day).
    */
-  async function fetchPreviousSets(exerciseId: number, currentWorkoutDate: string) {
+  async function fetchPreviousSets(exerciseId: number, currentWorkoutId: number) {
     previousSets.value = []
 
-    // Find the most recent workout_exercise for this exercise before the current date
-    const { data: prevWe } = await supabase
+    const { data: prevWe, error: weErr } = await supabase
       .from('workout_exercises')
-      .select('id, workout:workouts!inner(date, user_id)')
+      .select('id')
       .eq('exercise_id', exerciseId)
-      .lt('workout.date', currentWorkoutDate)
-      .order('workout(date)', { ascending: false })
+      .neq('workout_id', currentWorkoutId)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
+    if (weErr) { error.value = weErr.message; return }
     if (!prevWe) return
 
     const { data, error: err } = await supabase
@@ -86,6 +86,35 @@ export function useExerciseSets() {
     sets.value.forEach((s, i) => { s.set_number = i + 1 })
   }
 
+  /** Replace current sets with a copy of the previous session's sets. */
+  async function applyPreviousSets(workoutExerciseId: number) {
+    if (!previousSets.value.length) return
+
+    const currentIds = sets.value.map((s) => s.id)
+    for (const id of currentIds) {
+      const { error: err } = await supabase.from('exercise_sets').delete().eq('id', id)
+      if (err) { error.value = err.message; return }
+    }
+    sets.value = []
+
+    for (const prev of previousSets.value) {
+      const { data, error: err } = await supabase
+        .from('exercise_sets')
+        .insert({
+          workout_exercise_id: workoutExerciseId,
+          set_number: prev.set_number,
+          weight_kg: prev.weight_kg,
+          reps: prev.reps,
+          duration_seconds: prev.duration_seconds,
+          distance_km: prev.distance_km,
+        })
+        .select()
+        .single()
+      if (err) { error.value = err.message; return }
+      sets.value.push(data as ExerciseSet)
+    }
+  }
+
   return {
     sets,
     previousSets,
@@ -96,5 +125,6 @@ export function useExerciseSets() {
     addSet,
     updateSet,
     deleteSet,
+    applyPreviousSets,
   }
 }

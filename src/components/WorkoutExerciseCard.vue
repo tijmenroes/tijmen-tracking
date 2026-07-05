@@ -9,12 +9,23 @@
           {{ workoutExercise.exercise?.type === 'strength' ? 'Kracht' : 'Uithouding' }}
         </span>
       </div>
-      <button class="we-card__remove" title="Verwijder oefening" @click="$emit('remove', workoutExercise.id)">×</button>
+      <button class="we-card__remove" title="Verwijder oefening" @click="handleRemoveClick">×</button>
     </div>
 
     <!-- Previous session reference -->
     <div v-if="previousSets.length > 0" class="we-card__prev">
-      <div class="we-card__prev-label">Vorige keer</div>
+      <div class="we-card__prev-head">
+        <div class="we-card__prev-label">Vorige keer</div>
+        <button
+          class="we-card__prev-apply"
+          type="button"
+          title="Vul huidige sets in met vorige keer"
+          :disabled="applyingPrevious"
+          @click="handleApplyPrevious"
+        >
+          ↓
+        </button>
+      </div>
       <div v-for="s in previousSets" :key="s.id" class="we-card__prev-row">
         <span class="we-card__set-num">{{ s.set_number }}</span>
         <template v-if="workoutExercise.exercise?.type === 'strength'">
@@ -114,6 +125,16 @@
         />
       </div>
     </div>
+
+    <ConfirmModal
+      v-if="showRemoveConfirm"
+      title="Oefening verwijderen"
+      :message="`Weet je zeker dat je “${workoutExercise.exercise?.name}” uit deze workout wilt verwijderen? Gelogde sets gaan verloren.`"
+      confirm-label="Verwijderen"
+      danger
+      @confirm="confirmRemove"
+      @cancel="showRemoveConfirm = false"
+    />
   </div>
 </template>
 
@@ -121,28 +142,30 @@
 import { ref, onMounted } from 'vue'
 import type { WorkoutExercise, ExerciseSet } from '@/types/fitness'
 import { useExerciseSets } from '@/composables/useExerciseSets'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const props = defineProps<{
   workoutExercise: WorkoutExercise
-  workoutDate: string
   onUpdateExtra: (id: number, payload: { notes?: string | null; pain_scale?: number | null }) => Promise<void>
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'remove', id: number): void
   (e: 'detail', we: WorkoutExercise): void
 }>()
 
-const { sets, previousSets, fetchSets, fetchPreviousSets, addSet, updateSet: updateSetData, deleteSet } = useExerciseSets()
+const { sets, previousSets, fetchSets, fetchPreviousSets, addSet, updateSet: updateSetData, deleteSet, applyPreviousSets } = useExerciseSets()
 
 const accordionOpen = ref(false)
+const applyingPrevious = ref(false)
+const showRemoveConfirm = ref(false)
 const localNotes = ref<string>(props.workoutExercise.notes ?? '')
 const localPainScale = ref<number | null>(props.workoutExercise.pain_scale ?? null)
 
 onMounted(async () => {
   await fetchSets(props.workoutExercise.id)
   if (props.workoutExercise.exercise_id) {
-    await fetchPreviousSets(props.workoutExercise.exercise_id, props.workoutDate)
+    await fetchPreviousSets(props.workoutExercise.exercise_id, props.workoutExercise.workout_id)
   }
   if (sets.value.length === 0) {
     await handleAddSet()
@@ -170,6 +193,38 @@ async function handleAddSet() {
 
 async function handleDeleteSet(id: number) {
   await deleteSet(id)
+}
+
+async function handleApplyPrevious() {
+  if (previousSets.value.length === 0 || applyingPrevious.value) return
+  applyingPrevious.value = true
+  await applyPreviousSets(props.workoutExercise.id)
+  applyingPrevious.value = false
+}
+
+function hasLoggedData(): boolean {
+  if (localNotes.value.trim()) return true
+  if (localPainScale.value != null) return true
+  return sets.value.some(
+    (s) =>
+      s.weight_kg != null ||
+      s.reps != null ||
+      s.duration_seconds != null ||
+      s.distance_km != null,
+  )
+}
+
+function handleRemoveClick() {
+  if (hasLoggedData()) {
+    showRemoveConfirm.value = true
+  } else {
+    emit('remove', props.workoutExercise.id)
+  }
+}
+
+function confirmRemove() {
+  showRemoveConfirm.value = false
+  emit('remove', props.workoutExercise.id)
 }
 
 function updateSet(id: number, field: string, event: Event) {
@@ -269,13 +324,42 @@ async function saveExtra() {
   margin-bottom: 12px;
 }
 
+.we-card__prev-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
 .we-card__prev-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-text-3);
-  margin-bottom: 6px;
+}
+
+.we-card__prev-apply {
+  background: var(--color-primary-soft);
+  border: none;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--font);
+  line-height: 1;
+}
+
+.we-card__prev-apply:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .we-card__prev-row {
