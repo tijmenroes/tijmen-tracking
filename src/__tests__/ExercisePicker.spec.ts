@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import ExercisePicker from '@/components/ExercisePicker.vue'
+import { useExercisesStore } from '@/stores/exercises'
 import type { Exercise, Tag } from '@/types/fitness'
 
 const back = { id: 1, name: 'back', created_at: 'x' }
@@ -17,7 +19,20 @@ const exercises: Exercise[] = [
 ]
 
 function mountPicker(exerciseList = exercises) {
-  return mount(ExercisePicker, { props: { exercises: exerciseList, tags, loading: false } })
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const store = useExercisesStore()
+  store.usageCounts = new Map([
+    [10, 5],
+    [11, 2],
+    [12, 8],
+    [13, 0],
+  ])
+  vi.spyOn(store, 'fetchUsageCounts').mockResolvedValue(undefined)
+  return mount(ExercisePicker, {
+    props: { exercises: exerciseList, tags, loading: false },
+    global: { plugins: [pinia] },
+  })
 }
 
 function visibleNames(wrapper: ReturnType<typeof mountPicker>) {
@@ -25,9 +40,13 @@ function visibleNames(wrapper: ReturnType<typeof mountPicker>) {
 }
 
 describe('ExercisePicker filtering', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('shows all exercises when no tag filter is selected', () => {
     const wrapper = mountPicker()
-    expect(visibleNames(wrapper)).toEqual(['Row', 'Bench', 'Curl', 'Romanian Deadlift'])
+    expect(visibleNames(wrapper)).toEqual(['Bench', 'Curl', 'Romanian Deadlift', 'Row'])
   })
 
   it('searches by alias (case-insensitive)', async () => {
@@ -60,6 +79,14 @@ describe('ExercisePicker filtering', () => {
     await wrapper.find('.exercise-filter__search').setValue('zzzzz')
     expect(wrapper.find('.picker-sheet__empty').text()).toContain('Geen oefeningen')
   })
+
+  it('sorts by frequency and shows usage counts', async () => {
+    const wrapper = mountPicker()
+    const sortSelect = wrapper.findAll('.exercise-filter__select')[1]!
+    await sortSelect.setValue('frequency')
+    expect(visibleNames(wrapper)).toEqual(['Curl', 'Row', 'Bench', 'Romanian Deadlift'])
+    expect(wrapper.findAll('.picker-list__count').map((n) => n.text())).toEqual(['8', '5', '2', '0'])
+  })
 })
 
 describe('ExercisePicker multi-select', () => {
@@ -72,8 +99,11 @@ describe('ExercisePicker multi-select', () => {
 
   it('emits confirm with selected exercises in selection order', async () => {
     const wrapper = mountPicker()
-    await wrapper.findAll('.picker-list__item')[2]!.trigger('click') // Curl
-    await wrapper.findAll('.picker-list__item')[0]!.trigger('click') // Row
+    const items = wrapper.findAll('.picker-list__item')
+    const curl = items.find((item) => item.text().includes('Curl'))!
+    const row = items.find((item) => item.text().includes('Row'))!
+    await curl.trigger('click')
+    await row.trigger('click')
     await wrapper.find('.picker-sheet__confirm').trigger('click')
 
     const emitted = wrapper.emitted('confirm')?.[0]?.[0] as Exercise[]
@@ -88,7 +118,7 @@ describe('ExercisePicker multi-select', () => {
 
   it('deselects on second click', async () => {
     const wrapper = mountPicker()
-    const row = wrapper.findAll('.picker-list__item')[0]!
+    const row = wrapper.findAll('.picker-list__item').find((item) => item.text().includes('Row'))!
     await row.trigger('click')
     await row.trigger('click')
     expect(wrapper.find('.picker-sheet__confirm').text()).toBe('Toevoegen')

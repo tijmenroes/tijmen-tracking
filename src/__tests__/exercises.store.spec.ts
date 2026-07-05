@@ -33,6 +33,20 @@ vi.mock('@/lib/supabase', () => ({
           select: vi.fn(() => ({ in: mockTagsIn })),
         }
       }
+      if (table === 'workout_exercises') {
+        return {
+          select: vi.fn(() =>
+            Promise.resolve({
+              data: [
+                { exercise_id: 1, workout_id: 10 },
+                { exercise_id: 1, workout_id: 11 },
+                { exercise_id: 2, workout_id: 10 },
+              ],
+              error: null,
+            }),
+          ),
+        }
+      }
       return {}
     }),
   },
@@ -62,6 +76,30 @@ describe('exercises store', () => {
 
     await store.fetchExercises(true)
     expect(mockExercisesOrder).toHaveBeenCalledTimes(2)
+  })
+
+  it('fetchUsageCounts counts distinct workout sessions per exercise', async () => {
+    const store = useExercisesStore()
+    await store.fetchUsageCounts()
+    expect(store.getUsageCount(1)).toBe(2)
+    expect(store.getUsageCount(2)).toBe(1)
+    expect(store.getUsageCount(99)).toBe(0)
+  })
+
+  it('fetchExercises dedupes concurrent calls', async () => {
+    let resolveOrder!: (value: { data: unknown[]; error: null }) => void
+    const orderPending = new Promise<{ data: unknown[]; error: null }>((resolve) => {
+      resolveOrder = resolve
+    })
+    mockExercisesOrder.mockReturnValue(orderPending)
+
+    const store = useExercisesStore()
+    const first = store.fetchExercises()
+    const second = store.fetchExercises()
+    resolveOrder({ data: [], error: null })
+    await Promise.all([first, second])
+
+    expect(mockExercisesOrder).toHaveBeenCalledTimes(1)
   })
 
   it('createExercise links tags and attaches resolved tag objects', async () => {

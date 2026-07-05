@@ -150,19 +150,29 @@ import { useRouter } from 'vue-router'
 import BaseModal from '@/components/BaseModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
 import { useTemplatesStore } from '@/stores/templates'
+import { useExercisesStore } from '@/stores/exercises'
+import { useTagsStore } from '@/stores/tags'
 
 const router = useRouter()
 const { recentWorkouts, activeWorkout, loading, error, startWorkout, fetchRecentWorkouts, fetchActiveWorkout } = useWorkouts()
 const templatesStore = useTemplatesStore()
 const { recentTemplates, listLoading, loaded: templatesLoaded } = storeToRefs(templatesStore)
 const { fetchTemplates, createTemplate } = templatesStore
+const { fetchExercises } = useExercisesStore()
+const { fetchTags } = useTagsStore()
 
 const starting = ref(false)
 const showNewTemplate = ref(false)
 const newTemplateName = ref('')
 
 onMounted(async () => {
-  await Promise.all([fetchActiveWorkout(), fetchRecentWorkouts(), fetchTemplates()])
+  await Promise.all([
+    fetchActiveWorkout(),
+    fetchRecentWorkouts(),
+    fetchTemplates(),
+    fetchExercises(),
+    fetchTags(),
+  ])
 })
 
 async function handleStart() {

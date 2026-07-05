@@ -8,7 +8,13 @@
       </div>
 
       <div class="picker-sheet__filter">
-        <ExerciseFilterBar v-model:query="query" v-model:filter-tag-id="filterTagId" :tags="tags" />
+        <ExerciseFilterBar
+          v-model:query="query"
+          v-model:filter-tag-id="filterTagId"
+          v-model:sort-by="sortBy"
+          :tags="tags"
+          show-sort
+        />
       </div>
 
       <div class="picker-sheet__body">
@@ -39,6 +45,7 @@
                 }}</span>
               </div>
             </div>
+            <span v-if="sortBy === 'frequency'" class="picker-list__count">{{ usageCount(ex.id) }}</span>
           </li>
         </ul>
       </div>
@@ -53,19 +60,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import type { Exercise, Tag } from '@/types/fitness'
-import { filterExercises } from '@/utils/exerciseSearch'
+import { filterExercises, sortExercises, type ExerciseSortMode } from '@/utils/exerciseSearch'
+import { useExercisesStore } from '@/stores/exercises'
 import ExerciseFilterBar from '@/components/ExerciseFilterBar.vue'
 
 const props = defineProps<{ exercises: Exercise[]; tags: Tag[]; loading: boolean }>()
 const emit = defineEmits<{ (e: 'confirm', exercises: Exercise[]): void }>()
 
+const exercisesStore = useExercisesStore()
+const { usageCounts } = storeToRefs(exercisesStore)
+const { fetchUsageCounts, getUsageCount } = exercisesStore
+
 const query = ref('')
 const filterTagId = ref<number | null>(null)
+const sortBy = ref<ExerciseSortMode>('name')
 const selectedIds = ref<number[]>([])
 
-const filtered = computed(() => filterExercises(props.exercises, query.value, filterTagId.value))
+const filtered = computed(() => {
+  const matches = filterExercises(props.exercises, query.value, filterTagId.value)
+  return sortExercises(matches, sortBy.value, usageCounts.value)
+})
+
+function usageCount(exerciseId: number) {
+  return getUsageCount(exerciseId)
+}
+
+onMounted(() => {
+  void fetchUsageCounts()
+})
 
 const confirmLabel = computed(() =>
   selectedIds.value.length > 0 ? `Toevoegen (${selectedIds.value.length})` : 'Toevoegen',
@@ -270,6 +295,19 @@ function confirm() {
 .picker-list__badge--endurance {
   background: var(--color-down-soft);
   color: var(--color-down);
+}
+
+.picker-list__count {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: var(--color-chip);
+  color: var(--color-text-2);
+  min-width: 28px;
+  text-align: center;
 }
 
 .picker-sheet__footer {

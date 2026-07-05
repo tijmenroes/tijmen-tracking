@@ -11,22 +11,36 @@ import type { Exercise, Tag } from '@/types/fitness'
  */
 export const useExercisesStore = defineStore('exercises', () => {
   const exercises = ref<Exercise[]>([])
+  const usageCounts = ref<Map<number, number>>(new Map())
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  let inflight: Promise<void> | null = null
+  let usageInflight: Promise<void> | null = null
 
   async function fetchExercises(force = false) {
     if (loaded.value && !force) return
+    if (inflight) return inflight
+
     loading.value = true
     error.value = null
-    const { data, error: err } = await supabase
-      .from('exercises')
-      .select('*, tags(*)')
-      .order('name')
-    loading.value = false
-    if (err) { error.value = err.message; return }
-    exercises.value = data ?? []
-    loaded.value = true
+
+    inflight = (async () => {
+      try {
+        const { data, error: err } = await supabase
+          .from('exercises')
+          .select('*, tags(*)')
+          .order('name')
+        if (err) { error.value = err.message; return }
+        exercises.value = data ?? []
+        loaded.value = true
+      } finally {
+        loading.value = false
+        inflight = null
+      }
+    })()
+
+    return inflight
   }
 
   async function createExercise(name: string, type: Exercise['type'], tagIds: number[] = []) {
@@ -116,5 +130,55 @@ export const useExercisesStore = defineStore('exercises', () => {
     return exercises.value.find((e) => e.id === id)
   }
 
-  return { exercises, loading, error, loaded, fetchExercises, createExercise, updateExercise, updateExerciseTags, deleteExercise, getById }
+  function getUsageCount(exerciseId: number): number {
+    return usageCounts.value.get(exerciseId) ?? 0
+  }
+
+  /** Distinct saved/active workout sessions per exercise for the current user. */
+  async function fetchUsageCounts(force = false) {
+    if (usageCounts.value.size > 0 && !force) return
+    if (usageInflight) return usageInflight
+
+    usageInflight = (async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData.user) return
+
+      const { data, error: err } = await supabase
+        .from('workout_exercises')
+        .select('exercise_id, workout_id')
+      if (err) { error.value = err.message; return }
+
+      const sessionsByExercise = new Map<number, Set<number>>()
+      for (const row of data ?? []) {
+        const sessions = sessionsByExercise.get(row.exercise_id) ?? new Set<number>()
+        sessions.add(row.workout_id)
+        sessionsByExercise.set(row.exercise_id, sessions)
+      }
+      usageCounts.value = new Map(
+        [...sessionsByExercise.entries()].map(([exerciseId, sessions]) => [exerciseId, sessions.size]),
+      )
+    })()
+
+    try {
+      await usageInflight
+    } finally {
+      usageInflight = null
+    }
+  }
+
+  return {
+    exercises,
+    usageCounts,
+    loading,
+    error,
+    loaded,
+    fetchExercises,
+    fetchUsageCounts,
+    getUsageCount,
+    createExercise,
+    updateExercise,
+    updateExerciseTags,
+    deleteExercise,
+    getById,
+  }
 })

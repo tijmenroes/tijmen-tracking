@@ -40,6 +40,22 @@ describe('tags store', () => {
     expect(mockSelectOrder).toHaveBeenCalledTimes(2)
   })
 
+  it('fetchTags dedupes concurrent calls', async () => {
+    let resolveOrder!: (value: { data: unknown[]; error: null }) => void
+    const orderPending = new Promise<{ data: unknown[]; error: null }>((resolve) => {
+      resolveOrder = resolve
+    })
+    mockSelectOrder.mockReturnValue(orderPending)
+
+    const store = useTagsStore()
+    const first = store.fetchTags()
+    const second = store.fetchTags()
+    resolveOrder({ data: [], error: null })
+    await Promise.all([first, second])
+
+    expect(mockSelectOrder).toHaveBeenCalledTimes(1)
+  })
+
   it('fetchTags sets error on failure', async () => {
     mockSelectOrder.mockResolvedValue({ data: null, error: { message: 'boom' } })
 

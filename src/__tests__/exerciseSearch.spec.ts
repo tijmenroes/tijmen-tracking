@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { matchesExerciseQuery, filterExercises } from '@/utils/exerciseSearch'
+import { matchesExerciseQuery, filterExercises, sortExercises } from '@/utils/exerciseSearch'
 import type { Exercise } from '@/types/fitness'
 
 const ex: Exercise = {
@@ -63,5 +63,26 @@ describe('filterExercises', () => {
     expect(list).toHaveLength(1)
     expect(filterExercises([ex], 'rdl', 99)).toHaveLength(0)
     expect(filterExercises([ex], 'rdl', 10)).toHaveLength(1)
+  })
+})
+
+describe('sortExercises', () => {
+  const list: Exercise[] = [
+    { ...ex, id: 1, name: 'Bench' },
+    { ...ex, id: 2, name: 'Row' },
+    { ...ex, id: 3, name: 'Squat' },
+  ]
+  const counts = new Map([
+    [1, 2],
+    [2, 10],
+    [3, 10],
+  ])
+
+  it('sorts alphabetically by name by default', () => {
+    expect(sortExercises(list, 'name', counts).map((e) => e.name)).toEqual(['Bench', 'Row', 'Squat'])
+  })
+
+  it('sorts by frequency descending with name as tiebreaker', () => {
+    expect(sortExercises(list, 'frequency', counts).map((e) => e.name)).toEqual(['Row', 'Squat', 'Bench'])
   })
 })

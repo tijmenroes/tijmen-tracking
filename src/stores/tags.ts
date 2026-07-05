@@ -13,19 +13,31 @@ export const useTagsStore = defineStore('tags', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  let inflight: Promise<void> | null = null
 
   async function fetchTags(force = false) {
     if (loaded.value && !force) return
+    if (inflight) return inflight
+
     loading.value = true
     error.value = null
-    const { data, error: err } = await supabase
-      .from('tags')
-      .select('*')
-      .order('name')
-    loading.value = false
-    if (err) { error.value = err.message; return }
-    tags.value = data ?? []
-    loaded.value = true
+
+    inflight = (async () => {
+      try {
+        const { data, error: err } = await supabase
+          .from('tags')
+          .select('*')
+          .order('name')
+        if (err) { error.value = err.message; return }
+        tags.value = data ?? []
+        loaded.value = true
+      } finally {
+        loading.value = false
+        inflight = null
+      }
+    })()
+
+    return inflight
   }
 
   async function createTag(name: string) {
