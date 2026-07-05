@@ -23,7 +23,7 @@
       </button>
     </div>
 
-    <p class="home__build">{{ buildLabel }}</p>
+    <p class="home__build">Time:{{ buildLabel }}</p>
   </div>
 </template>
 
