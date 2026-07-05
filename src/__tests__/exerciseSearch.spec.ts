@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { matchesExerciseQuery } from '@/utils/exerciseSearch'
+import { matchesExerciseQuery, filterExercises } from '@/utils/exerciseSearch'
 import type { Exercise } from '@/types/fitness'
 
 const ex: Exercise = {
@@ -54,5 +54,14 @@ describe('matchesExerciseQuery', () => {
     const noAliases: Exercise = { ...ex, aliases: undefined }
     expect(matchesExerciseQuery(noAliases, 'romanian')).toBe(true)
     expect(matchesExerciseQuery(noAliases, 'rdl')).toBe(false)
+  })
+})
+
+describe('filterExercises', () => {
+  it('filters by query and single tag together', () => {
+    const list = filterExercises([ex], 'rdl', null)
+    expect(list).toHaveLength(1)
+    expect(filterExercises([ex], 'rdl', 99)).toHaveLength(0)
+    expect(filterExercises([ex], 'rdl', 10)).toHaveLength(1)
   })
 })

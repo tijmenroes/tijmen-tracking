@@ -46,6 +46,30 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/workout/history/:id',
+      name: 'workout-detail',
+      component: () => import('@/views/WorkoutDetailView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/workout/templates',
+      name: 'workout-templates',
+      component: () => import('@/views/WorkoutTemplatesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/workout/templates/:id/edit',
+      name: 'template-edit',
+      component: () => import('@/views/TemplateEditView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/workout/templates/:id',
+      name: 'template-detail',
+      component: () => import('@/views/TemplateDetailView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/exercises',
       name: 'exercises',
       component: () => import('@/views/ExercisesView.vue'),

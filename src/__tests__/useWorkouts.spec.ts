@@ -3,10 +3,14 @@ import { useWorkouts } from '@/composables/useWorkouts'
 
 const mockWorkoutInsertSingle = vi.fn()
 const mockWorkoutSelectSingle = vi.fn()
+const mockWorkoutUpdateSingle = vi.fn()
 const mockWorkoutDeleteEq = vi.fn()
 const mockWorkoutRecentLimit = vi.fn()
 const mockWorkoutPageRange = vi.fn()
+const mockWorkoutTemplateEq = vi.fn()
 const mockWeOrder = vi.fn()
+const mockWeInsert = vi.fn()
+const mockTeOrder = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -16,20 +20,26 @@ vi.mock('@/lib/supabase', () => ({
     from: vi.fn((table: string) => {
       if (table === 'workouts') {
         return {
-          // loadWorkout: select('*').eq('id').single()
-          // fetchRecentWorkouts: select(...).eq('user_id').order().limit()
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               single: mockWorkoutSelectSingle,
+              eq: vi.fn(() => ({ order: mockWorkoutTemplateEq })),
               order: vi.fn(() => ({ limit: mockWorkoutRecentLimit, range: mockWorkoutPageRange })),
             })),
           })),
           insert: vi.fn(() => ({ select: vi.fn(() => ({ single: mockWorkoutInsertSingle })) })),
+          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ single: mockWorkoutUpdateSingle })) })) })),
           delete: vi.fn(() => ({ eq: mockWorkoutDeleteEq })),
         }
       }
       if (table === 'workout_exercises') {
-        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: mockWeOrder })) })) }
+        return {
+          select: vi.fn(() => ({ eq: vi.fn(() => ({ order: mockWeOrder })) })),
+          insert: mockWeInsert,
+        }
+      }
+      if (table === 'template_exercises') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: mockTeOrder })) })) }
       }
       return {}
     }),
@@ -42,7 +52,7 @@ describe('useWorkouts', () => {
   })
 
   it('startWorkout inserts a new session and sets it active', async () => {
-    const created = { id: 1, user_id: 'test-user-id', date: '2026-07-04', name: 'Push A', notes: null, created_at: 'x' }
+    const created = { id: 1, user_id: 'test-user-id', date: '2026-07-04', name: 'Push A', notes: null, template_id: null, created_at: 'x' }
     mockWorkoutInsertSingle.mockResolvedValue({ data: created, error: null })
 
     const { workout, workoutExercises, startWorkout } = useWorkouts()
@@ -64,7 +74,7 @@ describe('useWorkouts', () => {
   })
 
   it('loadWorkout fetches the workout and its exercises', async () => {
-    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, created_at: 'x' }
+    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x' }
     const we = [{ id: 20, workout_id: 7, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x', exercise: { id: 3, name: 'Squat' } }]
     mockWorkoutSelectSingle.mockResolvedValue({ data: wk, error: null })
     mockWeOrder.mockResolvedValue({ data: we, error: null })
@@ -79,8 +89,8 @@ describe('useWorkouts', () => {
   it('fetchRecentWorkouts maps the count and drops empty workouts', async () => {
     mockWorkoutRecentLimit.mockResolvedValue({
       data: [
-        { id: 1, user_id: 'test-user-id', date: '2026-07-04', name: 'Push A', notes: null, created_at: 'x', workout_exercises: [{ count: 3 }] },
-        { id: 2, user_id: 'test-user-id', date: '2026-07-03', name: null, notes: null, created_at: 'x', workout_exercises: [] },
+        { id: 1, user_id: 'test-user-id', date: '2026-07-04', name: 'Push A', notes: null, template_id: null, created_at: 'x', workout_exercises: [{ count: 3 }] },
+        { id: 2, user_id: 'test-user-id', date: '2026-07-03', name: null, notes: null, template_id: null, created_at: 'x', workout_exercises: [] },
       ],
       error: null,
     })
@@ -99,7 +109,7 @@ describe('useWorkouts', () => {
   it('fetchWorkoutsPage stores the page and total count', async () => {
     mockWorkoutPageRange.mockResolvedValue({
       data: [
-        { id: 5, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, created_at: 'x', workout_exercises: [{ count: 2 }] },
+        { id: 5, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x', workout_exercises: [{ count: 2 }] },
       ],
       count: 23,
       error: null,
@@ -113,8 +123,56 @@ describe('useWorkouts', () => {
     expect(totalWorkouts.value).toBe(23)
   })
 
+  it('updateWorkout updates the active workout row', async () => {
+    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x' }
+    const updated = { ...wk, name: 'Leg Day', date: '2026-07-01' }
+    mockWorkoutSelectSingle.mockResolvedValue({ data: wk, error: null })
+    mockWeOrder.mockResolvedValue({ data: [], error: null })
+    mockWorkoutUpdateSingle.mockResolvedValue({ data: updated, error: null })
+
+    const { workout, loadWorkout, updateWorkout } = useWorkouts()
+    await loadWorkout(7)
+    const result = await updateWorkout(7, { name: 'Leg Day', date: '2026-07-01' })
+
+    expect(result).toEqual(updated)
+    expect(workout.value).toEqual(updated)
+  })
+
+  it('startWorkout with templateId copies template exercises', async () => {
+    const created = { id: 8, user_id: 'test-user-id', date: '2026-07-05', name: null, notes: null, template_id: 3, created_at: 'x' }
+    mockWorkoutInsertSingle.mockResolvedValue({ data: created, error: null })
+    mockTeOrder.mockResolvedValue({
+      data: [{ exercise_id: 10, sort_order: 0 }, { exercise_id: 11, sort_order: 1 }],
+      error: null,
+    })
+    mockWeInsert.mockResolvedValue({ error: null })
+    mockWeOrder.mockResolvedValue({ data: [], error: null })
+
+    const { workoutExercises, startWorkout } = useWorkouts()
+    const result = await startWorkout({ templateId: 3 })
+
+    expect(result?.template_id).toBe(3)
+    expect(mockWeInsert).toHaveBeenCalled()
+    expect(workoutExercises.value).toEqual([])
+  })
+
+  it('fetchWorkoutsByTemplate returns workouts linked to the template', async () => {
+    mockWorkoutTemplateEq.mockResolvedValue({
+      data: [
+        { id: 12, user_id: 'test-user-id', date: '2026-07-04', name: 'Push', notes: null, template_id: 3, created_at: 'x', workout_exercises: [{ count: 4 }] },
+      ],
+      error: null,
+    })
+
+    const { templateWorkouts, fetchWorkoutsByTemplate } = useWorkouts()
+    await fetchWorkoutsByTemplate(3)
+
+    expect(templateWorkouts.value).toHaveLength(1)
+    expect(templateWorkouts.value[0]?.exercise_count).toBe(4)
+  })
+
   it('deleteWorkout clears the active workout when it is the one deleted', async () => {
-    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, created_at: 'x' }
+    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x' }
     mockWorkoutSelectSingle.mockResolvedValue({ data: wk, error: null })
     mockWeOrder.mockResolvedValue({ data: [], error: null })
     mockWorkoutDeleteEq.mockResolvedValue({ error: null })

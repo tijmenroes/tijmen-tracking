@@ -144,6 +144,9 @@ onMounted(async () => {
   if (props.workoutExercise.exercise_id) {
     await fetchPreviousSets(props.workoutExercise.exercise_id, props.workoutDate)
   }
+  if (sets.value.length === 0) {
+    await handleAddSet()
+  }
 })
 
 function formatDuration(seconds: number | null): string {

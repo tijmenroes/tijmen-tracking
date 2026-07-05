@@ -18,7 +18,7 @@
             v-for="w in workoutsPage"
             :key="w.id"
             class="whist__item"
-            @click="router.push(`/workout/session/${w.id}`)"
+            @click="router.push(`/workout/history/${w.id}`)"
           >
             <div class="whist__item-info">
               <span class="whist__item-name">{{ w.name || formatDate(w.date) }}</span>

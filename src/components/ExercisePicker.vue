@@ -1,56 +1,53 @@
 <template>
-  <div class="picker-backdrop" @click.self="$emit('close')">
+  <div class="picker-backdrop" @click.self="confirm">
     <div class="picker-sheet">
       <div class="picker-sheet__handle" />
       <div class="picker-sheet__header">
         <h2 class="picker-sheet__title">Oefening toevoegen</h2>
-        <button class="picker-sheet__close" @click="$emit('close')">×</button>
+        <button class="picker-sheet__close" type="button" @click="confirm">×</button>
       </div>
 
-      <div class="picker-search">
-        <input
-          v-model="query"
-          class="picker-search__input"
-          type="text"
-          placeholder="Zoek op naam of alias (bijv. RDL)"
-        >
+      <div class="picker-sheet__filter">
+        <ExerciseFilterBar v-model:query="query" v-model:filter-tag-id="filterTagId" :tags="tags" />
       </div>
 
-      <div v-if="availableTags.length" class="picker-filters">
-        <button
-          v-for="tag in availableTags"
-          :key="tag.id"
-          type="button"
-          class="picker-filter"
-          :class="{ 'picker-filter--on': selectedTagIds.includes(tag.id) }"
-          @click="toggleTag(tag.id)"
-        >
-          {{ tag.name }}
+      <div class="picker-sheet__body">
+        <div v-if="loading" class="picker-sheet__empty">Laden…</div>
+        <div v-else-if="exercises.length === 0" class="picker-sheet__empty">
+          Nog geen oefeningen aangemaakt.
+        </div>
+        <div v-else-if="filtered.length === 0" class="picker-sheet__empty">
+          Geen oefeningen voor deze filters.
+        </div>
+
+        <ul v-else class="picker-list">
+          <li
+            v-for="ex in filtered"
+            :key="ex.id"
+            class="picker-list__item"
+            :class="{ 'picker-list__item--selected': isSelected(ex.id) }"
+            @click="toggle(ex.id)"
+          >
+            <span class="picker-list__check" :class="{ 'picker-list__check--on': isSelected(ex.id) }"
+              >✓</span
+            >
+            <div class="picker-list__info">
+              <span class="picker-list__name">{{ ex.name }}</span>
+              <div v-if="ex.tags && ex.tags.length" class="picker-list__tags">
+                <span v-for="tag in ex.tags" :key="tag.id" class="picker-list__tag">{{
+                  tag.name
+                }}</span>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="picker-sheet__footer">
+        <button class="picker-sheet__confirm" type="button" @click="confirm">
+          {{ confirmLabel }}
         </button>
       </div>
-
-      <div v-if="loading" class="picker-sheet__empty">Laden…</div>
-      <div v-else-if="exercises.length === 0" class="picker-sheet__empty">Nog geen oefeningen aangemaakt.</div>
-      <div v-else-if="filtered.length === 0" class="picker-sheet__empty">Geen oefeningen voor deze filters.</div>
-
-      <ul v-else class="picker-list">
-        <li
-          v-for="ex in filtered"
-          :key="ex.id"
-          class="picker-list__item"
-          @click="$emit('pick', ex)"
-        >
-          <div class="picker-list__info">
-            <span class="picker-list__name">{{ ex.name }}</span>
-            <div v-if="ex.tags && ex.tags.length" class="picker-list__tags">
-              <span v-for="tag in ex.tags" :key="tag.id" class="picker-list__tag">{{ tag.name }}</span>
-            </div>
-          </div>
-          <span class="picker-list__badge" :class="`picker-list__badge--${ex.type}`">
-            {{ ex.type === 'strength' ? 'Kracht' : 'Uithoudingsvermogen' }}
-          </span>
-        </li>
-      </ul>
     </div>
   </div>
 </template>
@@ -58,38 +55,38 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { Exercise, Tag } from '@/types/fitness'
-import { matchesExerciseQuery } from '@/utils/exerciseSearch'
+import { filterExercises } from '@/utils/exerciseSearch'
+import ExerciseFilterBar from '@/components/ExerciseFilterBar.vue'
 
-const props = defineProps<{ exercises: Exercise[]; loading: boolean }>()
-defineEmits<{ (e: 'close'): void; (e: 'pick', exercise: Exercise): void }>()
+const props = defineProps<{ exercises: Exercise[]; tags: Tag[]; loading: boolean }>()
+const emit = defineEmits<{ (e: 'confirm', exercises: Exercise[]): void }>()
 
-const selectedTagIds = ref<number[]>([])
 const query = ref('')
+const filterTagId = ref<number | null>(null)
+const selectedIds = ref<number[]>([])
 
-// Distinct tags across the available exercises, sorted by name.
-const availableTags = computed<Tag[]>(() => {
-  const seen = new Map<number, Tag>()
-  for (const ex of props.exercises) {
-    for (const tag of ex.tags ?? []) {
-      if (!seen.has(tag.id)) seen.set(tag.id, tag)
-    }
-  }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
-})
+const filtered = computed(() => filterExercises(props.exercises, query.value, filterTagId.value))
 
-// Text search (name or alias) AND tag filter (ANY selected tag).
-const filtered = computed(() =>
-  props.exercises.filter((ex) => {
-    if (!matchesExerciseQuery(ex, query.value)) return false
-    if (selectedTagIds.value.length && !(ex.tags ?? []).some((tag) => selectedTagIds.value.includes(tag.id))) return false
-    return true
-  }),
+const confirmLabel = computed(() =>
+  selectedIds.value.length > 0 ? `Toevoegen (${selectedIds.value.length})` : 'Toevoegen',
 )
 
-function toggleTag(id: number) {
-  const i = selectedTagIds.value.indexOf(id)
-  if (i === -1) selectedTagIds.value.push(id)
-  else selectedTagIds.value.splice(i, 1)
+function isSelected(id: number) {
+  return selectedIds.value.includes(id)
+}
+
+function toggle(id: number) {
+  const i = selectedIds.value.indexOf(id)
+  if (i === -1) selectedIds.value.push(id)
+  else selectedIds.value.splice(i, 1)
+}
+
+function confirm() {
+  const byId = new Map(props.exercises.map((ex) => [ex.id, ex]))
+  const selected = selectedIds.value
+    .map((id) => byId.get(id))
+    .filter((ex): ex is Exercise => ex != null)
+  emit('confirm', selected)
 }
 </script>
 
@@ -105,10 +102,10 @@ function toggleTag(id: number) {
 
 .picker-sheet {
   width: 100%;
-  max-height: 80dvh;
+  height: 80dvh;
   background: var(--color-card);
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  padding: 0 0 calc(24px + env(safe-area-inset-bottom));
+  padding: 0 0 env(safe-area-inset-bottom);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -153,82 +150,78 @@ function toggleTag(id: number) {
   justify-content: center;
 }
 
+.picker-sheet__filter {
+  padding: 4px 20px 12px;
+  flex-shrink: 0;
+}
+
+.picker-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
 .picker-sheet__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 40px 20px;
   text-align: center;
   color: var(--color-text-2);
   font-size: 15px;
 }
 
-.picker-search {
-  padding: 4px 20px 8px;
-  flex-shrink: 0;
-}
-
-.picker-search__input {
-  width: 100%;
-  height: 42px;
-  border: 1px solid var(--color-hairline);
-  border-radius: 10px;
-  background: var(--color-card-2);
-  padding: 0 12px;
-  font-size: 15px;
-  font-family: var(--font);
-  color: var(--color-text);
-  box-sizing: border-box;
-}
-
-.picker-search__input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.picker-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 20px 12px;
-  flex-shrink: 0;
-}
-
-.picker-filter {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 5px 10px;
-  border-radius: 20px;
-  border: 1px solid var(--color-hairline);
-  background: var(--color-chip);
-  color: var(--color-text-2);
-  cursor: pointer;
-  font-family: var(--font);
-}
-
-.picker-filter--on {
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
 .picker-list {
   list-style: none;
   margin: 0;
   padding: 0 16px;
-  overflow-y: auto;
   flex: 1;
 }
 
 .picker-list__item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 14px 4px;
   border-bottom: 1px solid var(--color-hairline);
   cursor: pointer;
-  gap: 12px;
+  gap: 10px;
 }
 
 .picker-list__item:last-child {
   border-bottom: none;
+}
+
+.picker-list__item--selected {
+  background: var(--color-primary-soft);
+  margin: 0 -4px;
+  padding-left: 8px;
+  padding-right: 8px;
+  border-radius: 10px;
+  border-bottom-color: transparent;
+}
+
+.picker-list__check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-hairline);
+  background: var(--color-card-2);
+  color: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.picker-list__check--on {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
 }
 
 .picker-list__info {
@@ -236,6 +229,7 @@ function toggleTag(id: number) {
   flex-direction: column;
   gap: 5px;
   min-width: 0;
+  flex: 1;
 }
 
 .picker-list__name {
@@ -265,6 +259,7 @@ function toggleTag(id: number) {
   padding: 3px 8px;
   border-radius: 20px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .picker-list__badge--strength {
@@ -275,5 +270,24 @@ function toggleTag(id: number) {
 .picker-list__badge--endurance {
   background: var(--color-down-soft);
   color: var(--color-down);
+}
+
+.picker-sheet__footer {
+  padding: 12px 20px 20px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-hairline);
+}
+
+.picker-sheet__confirm {
+  width: 100%;
+  height: 48px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font);
 }
 </style>

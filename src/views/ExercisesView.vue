@@ -49,18 +49,7 @@
       </div>
 
       <!-- Search + tag filter -->
-      <div class="exercises__filter-row">
-        <input
-          v-model="query"
-          class="exercises__search"
-          type="text"
-          placeholder="Zoek op naam of alias (bijv. RDL)"
-        >
-        <select v-model="filterTagId" class="exercises__filter-select" aria-label="Filter op tag">
-          <option :value="null">Alle tags</option>
-          <option v-for="tag in tags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
-        </select>
-      </div>
+      <ExerciseFilterBar v-model:query="query" v-model:filter-tag-id="filterTagId" :tags="tags" />
 
       <!-- List -->
       <div v-if="loading" class="exercises__loading">Laden…</div>
@@ -130,8 +119,9 @@ import { storeToRefs } from 'pinia'
 import { useProfileStore } from '@/stores/profile'
 import { useExercises } from '@/composables/useExercises'
 import { useTags } from '@/composables/useTags'
-import { matchesExerciseQuery } from '@/utils/exerciseSearch'
+import { filterExercises } from '@/utils/exerciseSearch'
 import TagSelector from '@/components/TagSelector.vue'
+import ExerciseFilterBar from '@/components/ExerciseFilterBar.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import type { Exercise } from '@/types/fitness'
@@ -148,13 +138,7 @@ const selectedTagIds = ref<number[]>([])
 
 const query = ref('')
 const filterTagId = ref<number | null>(null)
-const filteredExercises = computed(() =>
-  exercises.value.filter((ex) => {
-    if (!matchesExerciseQuery(ex, query.value)) return false
-    if (filterTagId.value !== null && !(ex.tags ?? []).some((t) => t.id === filterTagId.value)) return false
-    return true
-  }),
-)
+const filteredExercises = computed(() => filterExercises(exercises.value, query.value, filterTagId.value))
 
 const confirmTarget = ref<Exercise | null>(null)
 
@@ -339,48 +323,6 @@ async function handleSaveEdit() {
   margin-top: 8px;
   font-size: 13px;
   color: var(--color-up);
-}
-
-.exercises__filter-row {
-  display: flex;
-  gap: 8px;
-}
-
-.exercises__search {
-  flex: 1;
-  height: 44px;
-  border: 1px solid var(--color-hairline);
-  border-radius: 10px;
-  background: var(--color-card-2);
-  padding: 0 14px;
-  font-size: 15px;
-  font-family: var(--font);
-  color: var(--color-text);
-  box-sizing: border-box;
-  min-width: 0;
-}
-
-.exercises__search:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.exercises__filter-select {
-  flex-shrink: 0;
-  max-width: 40%;
-  height: 44px;
-  border: 1px solid var(--color-hairline);
-  border-radius: 10px;
-  background: var(--color-card-2);
-  padding: 0 8px;
-  font-size: 14px;
-  font-family: var(--font);
-  color: var(--color-text);
-}
-
-.exercises__filter-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
 }
 
 .exercises__loading {

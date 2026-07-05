@@ -15,3 +15,16 @@ export function matchesExerciseQuery(ex: Exercise, query: string): boolean {
   if ((ex.aliases ?? []).some((alias) => alias.toLowerCase().includes(q))) return true
   return (ex.tags ?? []).some((tag) => tag.name.toLowerCase() === q)
 }
+
+/** Filter exercises by text query and optional single-tag filter (same rules as admin beheer). */
+export function filterExercises(
+  exercises: Exercise[],
+  query: string,
+  filterTagId: number | null,
+): Exercise[] {
+  return exercises.filter((ex) => {
+    if (!matchesExerciseQuery(ex, query)) return false
+    if (filterTagId !== null && !(ex.tags ?? []).some((t) => t.id === filterTagId)) return false
+    return true
+  })
+}

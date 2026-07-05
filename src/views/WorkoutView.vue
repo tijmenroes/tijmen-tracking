@@ -14,6 +14,46 @@
       </button>
       <div v-if="error" class="wdash__error">{{ error }}</div>
 
+      <!-- Templates -->
+      <section class="wdash__section">
+        <div class="wdash__section-head">
+          <h2 class="wdash__section-title">Templates</h2>
+          <button
+            v-if="recentTemplates.length > 0"
+            class="wdash__section-link"
+            @click="router.push('/workout/templates')"
+          >
+            Alle templates ›
+          </button>
+        </div>
+
+        <div v-if="templatesLoading" class="wdash__muted">Laden…</div>
+        <div v-else-if="recentTemplates.length === 0" class="wdash__muted">
+          Nog geen templates.
+          <button class="wdash__inline-link" @click="showNewTemplate = true">Maak er een ›</button>
+        </div>
+        <ul v-else class="wdash__list">
+          <li
+            v-for="t in recentTemplates"
+            :key="t.id"
+            class="wdash__item"
+            @click="handleStartFromTemplate(t.id)"
+          >
+            <div class="wdash__item-info">
+              <span class="wdash__item-name">{{ t.name }}</span>
+              <span class="wdash__item-sub">
+                {{ t.exercise_count }} {{ t.exercise_count === 1 ? 'oefening' : 'oefeningen' }}
+              </span>
+            </div>
+            <span class="wdash__item-action">Start ›</span>
+          </li>
+        </ul>
+
+        <button v-if="recentTemplates.length > 0" class="wdash__text-btn" @click="showNewTemplate = true">
+          + Nieuwe template
+        </button>
+      </section>
+
       <!-- Recente workouts -->
       <section class="wdash__section">
         <div class="wdash__section-head">
@@ -36,7 +76,7 @@
             v-for="w in recentWorkouts"
             :key="w.id"
             class="wdash__item"
-            @click="router.push(`/workout/session/${w.id}`)"
+            @click="router.push(`/workout/history/${w.id}`)"
           >
             <div class="wdash__item-info">
               <span class="wdash__item-name">{{ w.name || formatDate(w.date) }}</span>
@@ -49,32 +89,76 @@
         </ul>
       </section>
 
-      <!-- Templates volgen in fase 5 -->
-
       <button class="wdash__secondary" @click="router.push('/workout/export')">
         Exporteer voor AI
       </button>
     </div>
+
+    <BaseModal v-if="showNewTemplate" title="Nieuwe template" @close="showNewTemplate = false">
+      <input
+        v-model="newTemplateName"
+        class="wdash__modal-input"
+        type="text"
+        placeholder="Naam template (bijv. Push A)"
+        @keydown.enter="handleCreateTemplate"
+      >
+      <template #footer>
+        <button class="wdash__modal-btn wdash__modal-btn--cancel" @click="showNewTemplate = false">
+          Annuleren
+        </button>
+        <button
+          class="wdash__modal-btn wdash__modal-btn--primary"
+          :disabled="!newTemplateName.trim()"
+          @click="handleCreateTemplate"
+        >
+          Aanmaken
+        </button>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import BaseModal from '@/components/BaseModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
+import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
 
 const router = useRouter()
 const { recentWorkouts, loading, error, startWorkout, fetchRecentWorkouts } = useWorkouts()
+const { recentTemplates, loading: templatesLoading, fetchRecentTemplates, createTemplate } = useWorkoutTemplates()
 
 const starting = ref(false)
+const showNewTemplate = ref(false)
+const newTemplateName = ref('')
 
-onMounted(() => fetchRecentWorkouts())
+onMounted(async () => {
+  await Promise.all([fetchRecentWorkouts(), fetchRecentTemplates()])
+})
 
 async function handleStart() {
   starting.value = true
   const workout = await startWorkout()
   starting.value = false
   if (workout) router.push(`/workout/session/${workout.id}`)
+}
+
+async function handleStartFromTemplate(templateId: number) {
+  starting.value = true
+  const workout = await startWorkout({ templateId })
+  starting.value = false
+  if (workout) router.push(`/workout/session/${workout.id}`)
+}
+
+async function handleCreateTemplate() {
+  if (!newTemplateName.value.trim()) return
+  const created = await createTemplate(newTemplateName.value.trim())
+  if (created) {
+    showNewTemplate.value = false
+    newTemplateName.value = ''
+    router.push(`/workout/templates/${created.id}/edit`)
+  }
 }
 
 function formatDate(dateStr: string): string {
@@ -189,6 +273,18 @@ function formatDate(dateStr: string): string {
   color: var(--color-text-2);
 }
 
+.wdash__inline-link {
+  display: block;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-family: var(--font);
+}
+
 .wdash__list {
   list-style: none;
   margin: 0;
@@ -224,20 +320,32 @@ function formatDate(dateStr: string): string {
   font-size: 15px;
   font-weight: 600;
   color: var(--color-text);
-  text-transform: capitalize;
 }
 
 .wdash__item-sub {
   font-size: 13px;
   color: var(--color-text-2);
-  text-transform: capitalize;
 }
 
-.wdash__item-chevron {
-  font-size: 22px;
-  color: var(--color-text-3);
+.wdash__item-chevron,
+.wdash__item-action {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
   line-height: 1;
   flex-shrink: 0;
+}
+
+.wdash__text-btn {
+  margin-top: 10px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 4px 0;
 }
 
 .wdash__secondary {
@@ -250,5 +358,44 @@ function formatDate(dateStr: string): string {
   cursor: pointer;
   font-family: var(--font);
   padding: 4px 8px;
+}
+
+.wdash__modal-input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 10px;
+  background: var(--color-card-2);
+  padding: 0 12px;
+  font-size: 15px;
+  font-family: var(--font);
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.wdash__modal-btn {
+  flex: 1;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.wdash__modal-btn--cancel {
+  background: var(--color-chip);
+  color: var(--color-text);
+}
+
+.wdash__modal-btn--primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.wdash__modal-btn--primary:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 </style>

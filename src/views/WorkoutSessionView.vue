@@ -1,13 +1,21 @@
 <template>
   <div class="workout">
     <div class="workout__header">
-      <button class="workout__back" @click="router.push('/workout')">‹</button>
+      <button class="workout__back" @click="router.back()">‹</button>
       <div class="workout__header-text">
         <div class="workout__supra">Fitness</div>
         <h1 class="workout__title">{{ workout?.name || 'Workout' }}</h1>
         <div class="workout__date">{{ formattedDate }}</div>
       </div>
-      <button class="workout__profile-btn" title="Profiel" @click="router.push('/profile')">⚙</button>
+      <button
+        v-if="workout"
+        class="workout__settings-btn"
+        type="button"
+        title="Workout aanpassen"
+        @click="showEditModal = true"
+      >
+        ⚙
+      </button>
     </div>
 
     <div v-if="loading" class="workout__loading">Laden…</div>
@@ -38,9 +46,18 @@
     <ExercisePicker
       v-if="showPicker"
       :exercises="exercises"
+      :tags="tags"
       :loading="exercisesLoading"
-      @close="showPicker = false"
-      @pick="handlePickExercise"
+      @confirm="handleConfirmExercises"
+    />
+
+    <WorkoutEditModal
+      v-if="showEditModal && workout"
+      :workout="workout"
+      allow-save-as-template
+      :has-exercises="workoutExercises.length > 0"
+      @close="showEditModal = false"
+      @save="handleSaveWorkout"
     />
   </div>
 </template>
@@ -50,16 +67,22 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import WorkoutExerciseCard from '@/components/WorkoutExerciseCard.vue'
 import ExercisePicker from '@/components/ExercisePicker.vue'
+import WorkoutEditModal from '@/components/WorkoutEditModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
+import { useWorkoutTemplates } from '@/composables/useWorkoutTemplates'
 import { useExercises } from '@/composables/useExercises'
+import { useTags } from '@/composables/useTags'
 import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
 const route = useRoute()
-const { workout, workoutExercises, loading, error, loadWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise } = useWorkouts()
+const { workout, workoutExercises, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise } = useWorkouts()
 const { exercises, loading: exercisesLoading, fetchExercises } = useExercises()
+const { tags, fetchTags } = useTags()
+const { createTemplateFromWorkout } = useWorkoutTemplates()
 
 const showPicker = ref(false)
+const showEditModal = ref(false)
 
 const formattedDate = computed(() => {
   if (!workout.value) return ''
@@ -69,16 +92,30 @@ const formattedDate = computed(() => {
 
 onMounted(async () => {
   await loadWorkout(Number(route.params.id))
-  await fetchExercises()
+  await Promise.all([fetchExercises(), fetchTags()])
 })
 
-async function handlePickExercise(ex: Exercise) {
+async function handleConfirmExercises(selected: Exercise[]) {
   showPicker.value = false
-  await addExerciseToWorkout(ex.id)
+  for (const ex of selected) {
+    await addExerciseToWorkout(ex.id)
+  }
 }
 
 async function handleRemoveExercise(id: number) {
   await removeExerciseFromWorkout(id)
+}
+
+async function handleSaveWorkout(payload: { name: string | null; date: string; saveAsTemplate: boolean }) {
+  if (!workout.value) return
+  await updateWorkout(workout.value.id, { name: payload.name, date: payload.date })
+  if (error.value) return
+  if (payload.saveAsTemplate) {
+    const templateName = payload.name?.trim() || workout.value.name || 'Workout template'
+    await createTemplateFromWorkout(workout.value.id, templateName)
+    if (error.value) return
+  }
+  showEditModal.value = false
 }
 </script>
 
@@ -111,7 +148,7 @@ async function handleRemoveExercise(id: number) {
   margin-top: 16px;
 }
 
-.workout__profile-btn {
+.workout__settings-btn {
   background: none;
   border: none;
   font-size: 20px;

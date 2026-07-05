@@ -21,7 +21,29 @@ export interface Workout {
   date: string
   name: string | null
   notes: string | null
+  template_id: number | null
   created_at: string
+}
+
+export interface WorkoutTemplate {
+  id: number
+  user_id: string
+  name: string
+  created_at: string
+  template_exercises?: TemplateExercise[]
+}
+
+export interface TemplateExercise {
+  id: number
+  template_id: number
+  exercise_id: number
+  sort_order: number
+  created_at: string
+  exercise?: Exercise
+}
+
+export interface TemplateSummary extends WorkoutTemplate {
+  exercise_count: number
 }
 
 export interface WorkoutSummary extends Workout {
