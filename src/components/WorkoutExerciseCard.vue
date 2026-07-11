@@ -48,9 +48,7 @@
         <template v-if="workoutExercise.exercise?.type === 'strength'">
           <input
             class="we-card__input"
-            type="number"
-            lang="en"
-            step="any"
+            type="text"
             inputmode="decimal"
             placeholder="kg"
             :value="s.weight_kg ?? ''"
@@ -77,9 +75,7 @@
           >
           <input
             class="we-card__input"
-            type="number"
-            lang="en"
-            step="any"
+            type="text"
             inputmode="decimal"
             placeholder="km"
             :value="s.distance_km ?? ''"
@@ -244,10 +240,20 @@ function confirmRemove() {
   emit('remove', props.workoutExercise.id)
 }
 
+const DECIMAL_FIELDS = new Set(['weight_kg', 'distance_km'])
+
+function parseSetValue(raw: string, field: string): number | null {
+  if (raw.trim() === '') return null
+  const normalized = DECIMAL_FIELDS.has(field) ? raw.replace(',', '.') : raw
+  const num = Number(normalized)
+  return Number.isNaN(num) ? null : num
+}
+
 function updateSet(id: number, field: string, event: Event) {
-  const raw = (event.target as HTMLInputElement).value
-  const num = raw === '' ? null : Number(raw)
+  const input = event.target as HTMLInputElement
+  const num = parseSetValue(input.value, field)
   updateSetData(id, { [field]: num })
+  input.value = num == null ? '' : String(num)
 }
 
 async function setPainScale(n: number | null) {
