@@ -1,0 +1,267 @@
+# Cardio logging — hardlopen & fietsen bijhouden
+
+Plan voor het loggen van cardio-sessies (hardlopen, fietsen, evt. later roeien/wandelen) in de app. Bewust **basic** gehouden: geen Strava-kloon met live GPS en kaarten, maar een snelle handmatige log die het belangrijkste vastlegt en de rest afleidt. Geen implementatie in dit document — onderzoek, keuzes, open vragen en een gefaseerde aanpak.
+
+---
+
+## Uitgangspunt (Tijmen)
+
+- Ik gebruik soms Strava voor de in-depth analyse van een run — dat wil ik **niet** namaken.
+- Ik wil het **basic** houden: "30 min fietsen, 11 km" + globale info.
+- Vraag: wat is logisch om te loggen, wat kunnen we afleiden, en is native nodig?
+
+**Kernbeslissing:** cardio wordt een **eigen, lichtgewicht log** — niet ingeplugd in de krachtstructuur (`workouts` → `workout_exercises` → `exercise_sets`). Zie [Datamodel](#datamodel-eigen-tabel).
+
+---
+
+## Wat log je? (de kern)
+
+Voor zowel fietsen als hardlopen zijn er maar **twee verplichte inputs**. De rest is afgeleid of optioneel.
+
+| Veld           | Type      | Voorbeeld | Verplicht | Opmerking                                        |
+| -------------- | --------- | --------- | --------- | ------------------------------------------------ |
+| **Afstand**    | km        | 11.0      | ✅        | 1 decimaal                                       |
+| **Duur**       | mm:ss     | 30:00     | ✅        | invoer als minuten of mm:ss                      |
+| Activiteit     | enum      | fietsen   | ✅        | `run` / `ride` (later uitbreidbaar)              |
+| Datum          | date      | 2026-07-11| ✅        | default vandaag                                  |
+| RPE / gevoel   | 1–10      | 6         | ❌        | subjectieve zwaarte; hergebruik `pain_scale`-UI  |
+| Notitie        | tekst     | "heuvels" | ❌        | type sessie, hoe het ging                        |
+
+**Wat we bewust NIET handmatig loggen:** hartslag, hoogtemeters, cadans, calorieën. Die zijn alleen zinvol als een sensor ze levert — met de hand invoeren is irritant en onnauwkeurig. Zie [Native & sensordata](#native--sensordata).
+
+---
+
+## Wat leiden we af? (gratis, geen extra invoer)
+
+Uit alleen **afstand + duur**:
+
+```
+tempo (hardlopen)   = duur / afstand           → min/km   (bijv. 5:27 /km)
+snelheid (fietsen)  = afstand / duur × 60       → km/h     (bijv. 22.0 km/h)
+```
+
+- **Hardlopen → tempo (min/km)** is dé metric voor lopers.
+- **Fietsen → snelheid (km/h)** is natuurlijker dan tempo.
+
+Dus de gebruiker tikt "30 min, 11 km" en de app toont zelf "22,0 km/h". Dat is precies de "globale informatie" zonder extra werk.
+
+**Weergave-keuze per activiteit:**
+
+| Activiteit | Primaire afgeleide metric | Secundair       |
+| ---------- | ------------------------- | --------------- |
+| `run`      | tempo (min/km)            | snelheid (km/h) |
+| `ride`     | snelheid (km/h)           | —               |
+
+---
+
+## Cardio is anders dan kracht
+
+Bij kracht draait de celebration om **PR's per oefening** (e1RM). Bij cardio werkt dat slecht:
+
+- Een "tempo-PR" is alleen eerlijk te vergelijken bij **ongeveer dezelfde afstand**. Een snelle 2 km vs. een rustige 20 km zegt niets — tempo-PR's over alle afstanden door elkaar zijn **misleidend**.
+- Waar cardio wél op beloont: **volume en consistentie**.
+  - "Deze week 34 km"
+  - "Je 5e rit deze maand"
+  - "3 weken op rij gelopen" (streak)
+
+**Gevolg voor motivatie/celebration:** cardio-flair richt zich op **week/maand-totalen en streaks**, niet op per-sessie records. Dat is een andere flavor dan het krachtscherm ([`workout-celebration.md`](workout-celebration.md)), en dat is prima.
+
+**PR's die wél eerlijk zijn (optioneel, later):**
+
+- Langste afstand ooit (per activiteit)
+- Langste duur ooit
+- Snelste tempo **binnen een afstand-bucket** (bijv. 5 km, 10 km) — pas als we buckets goed labelen; niet in v1
+
+---
+
+## Datamodel: eigen tabel
+
+De enige echte architectuurkeuze.
+
+| Optie                              | Pro                                                     | Con                                                                 |
+| ---------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------- |
+| **A. Hergebruik krachtstructuur**  | Geen migratie; endurance-set bestaat al                 | Geforceerd: een rit is geen "oefening met sets"; krachtschermen (volume, e1RM) slaan nergens op |
+| **B. Eigen `cardio_sessions`-tabel** | Simpeler mentaal model; eigen tabje; eigen celebration | Eén migratie + kleine store nodig                                   |
+
+**Beslissing: B.** Sluit aan bij de note in het celebration-plan ("misschien moet heel endurance een eigen tabje krijgen"). Cardio en kracht zijn twee werelden; ze in één structuur duwen maakt beide rommeliger.
+
+### Voorgestelde tabel
+
+```sql
+-- migration_009_cardio_sessions.sql
+create table if not exists cardio_sessions (
+  id               bigint generated by default as identity primary key,
+  user_id          uuid not null references auth.users (id) on delete cascade,
+  activity         text not null check (activity in ('run', 'ride')),
+  date             date not null default current_date,
+  distance_km      numeric(6, 2) not null check (distance_km > 0),
+  duration_seconds integer not null check (duration_seconds > 0),
+  rpe              smallint check (rpe between 1 and 10),
+  note             text,
+  source           text not null default 'manual' check (source in ('manual', 'healthkit')),
+  created_at       timestamptz not null default now()
+);
+
+alter table cardio_sessions enable row level security;
+
+create policy "Users manage own cardio sessions"
+  on cardio_sessions for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create index cardio_sessions_user_date_idx
+  on cardio_sessions (user_id, date desc);
+```
+
+- `source` maakt later HealthKit-import mogelijk zonder tweede tabel (zie [Native](#native--sensordata)).
+- `activity` als tekst-enum, uitbreidbaar (`swim`, `walk`, `row`) zonder migratie-pijn.
+- Geen `sets`: één rij = één sessie. Simpel.
+
+---
+
+## Native & sensordata
+
+| Scenario                                   | Native nodig?     | Advies                                                                 |
+| ------------------------------------------ | ----------------- | ---------------------------------------------------------------------- |
+| **Handmatig loggen ("30 min, 11 km")**     | ❌ Nee            | Puur een formulier; werkt vandaag in de web/PWA-versie                 |
+| **Live GPS-tracking + kaart**              | ✅ Ja (fors)      | **Afraden** — Capacitor Geolocation, achtergrondlocatie, kaartrendering; concurreert direct met Strava |
+| **Import uit Apple Health / HealthKit**    | ✅ Ja (beperkt)   | **De slimme tussenweg voor later** — read-only samenvatting importeren |
+
+**Waarom HealthKit-import de juiste "sensor"-route is:**
+
+- Je loopt/fietst met je horloge of Strava zoals gewend.
+- De app **importeert alleen de samenvatting** (afstand, duur, evt. hartslag, calorieën) → `source = 'healthkit'`.
+- Geen dubbel loggen, geen GPS-gedoe, geen kaarten bouwen.
+- Vereist Capacitor + een HealthKit-plugin (bijv. een community `@capacitor-community/health`-achtige) en Apple-review voor de health-permissie.
+
+**Conclusie:** v1 volledig zonder native. HealthKit is een aparte, latere fase en puur additief (zelfde tabel, andere `source`).
+
+---
+
+## Schermopbouw (v1-concept)
+
+### Cardio-tabje
+
+Eigen ingang naast Kracht (bijv. in `/workout` of een aparte tab). Bevat:
+
+- **Snelle-log-knop** → sheet met afstand + duur + activiteit + (optioneel) RPE/notitie
+- **Deze week**-samenvatting bovenaan: totale km, totale tijd, aantal sessies
+- **Lijst** van recente sessies, per rij: activiteit-icoon, datum, afstand, duur, afgeleide metric (tempo/snelheid)
+
+### Log-sheet
+
+- Activiteit-toggle (Hardlopen / Fietsen)
+- Afstand (km) + Duur (mm:ss)
+- RPE-slider 1–10 (optioneel, zelfde component-idee als `pain_scale`)
+- Notitie (optioneel)
+- Live-preview van afgeleide metric terwijl je typt ("→ 22,0 km/h")
+
+### (Later) Cardio-celebration
+
+Bij opslaan een lichte celebration in dezelfde taal als het krachtscherm, maar op **volume/consistentie**:
+
+- "34 km deze week 🚴"
+- "3 weken op rij"
+- Langste afstand/duur ooit als milestone
+
+---
+
+## Berekeningen & definities
+
+```
+tempo_sec_per_km   = duration_seconds / distance_km
+tempo_display      = mm:ss  (bijv. 327s → "5:27 /km")
+snelheid_kmh       = distance_km / (duration_seconds / 3600)
+
+week_totaal_km     = Σ distance_km waar date in huidige ISO-week
+week_totaal_tijd   = Σ duration_seconds waar date in huidige ISO-week
+streak_weken       = aantal aaneengesloten ISO-weken met ≥ 1 sessie
+```
+
+- Afronding: afstand 1 decimaal, snelheid 1 decimaal, tempo op hele seconden.
+- Utils (pure, testbaar): `src/utils/cardio.ts` → `pace()`, `speed()`, `formatPace()`, weektotalen.
+
+---
+
+## Technische architectuur (indicatief)
+
+### Nieuwe bestanden (bij implementatie)
+
+```
+supabase/migration_009_cardio_sessions.sql   # tabel + RLS
+src/composables/useCardio.ts                  # CRUD + weektotalen (Supabase)
+src/utils/cardio.ts                           # pace/speed/formatting (pure)
+src/views/CardioView.vue                      # tabje: samenvatting + lijst
+src/components/CardioLogSheet.vue             # snelle-log sheet
+src/types/fitness.ts                          # CardioSession interface (uitbreiden)
+```
+
+### Route
+
+```ts
+{ path: '/cardio', name: 'cardio', component: () => import('@/views/CardioView.vue'), meta: { requiresAuth: true, navDepth: 1 } }
+```
+
+### Tests (Vitest)
+
+- `cardio.ts`: tempo, snelheid, formatPace, weektotaal met sessies over weekgrens
+- `useCardio.ts`: create/list met gemockte Supabase (patroon zoals `useWorkoutStats.spec`)
+- Streak-berekening: aaneengesloten weken, gat in het midden
+
+---
+
+## Implementatie in fasen
+
+### Fase 1 — Basic cardio-log (geen native)
+
+- [ ] Migratie `cardio_sessions` + RLS
+- [ ] `useCardio` (create, list, delete) + `useCardio.spec`
+- [ ] `src/utils/cardio.ts` (pace/speed/format) + tests
+- [ ] `CardioLogSheet` met live afgeleide metric
+- [ ] `CardioView` tabje: "deze week"-samenvatting + sessielijst
+- [ ] Route + navigatie-ingang
+
+**Omvang:** medium — 1 tabel, 1 composable, 1 view, 1 sheet, 1 util.
+
+### Fase 2 — Cardio-celebration & streaks
+
+- [ ] Weektotalen + streak-berekening
+- [ ] Lichte celebration op volume/consistentie bij opslaan
+- [ ] Langste afstand/duur als milestone
+
+### Fase 3 — HealthKit-import (native)
+
+- [ ] Capacitor + HealthKit-plugin, permissie-flow
+- [ ] Read-only import van run/ride-samenvattingen → `source = 'healthkit'`
+- [ ] Dedup tegen handmatige entries
+
+---
+
+## Open vragen — input gewenst
+
+1. **Activiteiten v1:** alleen `run` + `ride`, of ook `walk` meteen mee?
+2. **Duur-invoer:** minuten (30) of mm:ss (30:00)? mm:ss is preciezer voor runs.
+3. **Tabje-plek:** aparte `/cardio`-tab, of subsectie binnen `/workout`?
+4. **RPE:** meteen in v1, of pas als je merkt dat je het mist?
+5. **Celebration:** wil je überhaupt een cardio-feestmoment, of is een simpele opgeslagen-melding genoeg?
+
+---
+
+## Default beslissingen (voor als open vragen blijven liggen)
+
+| Onderwerp        | Default v1                                            |
+| ---------------- | ----------------------------------------------------- |
+| Datamodel        | Eigen `cardio_sessions`-tabel                          |
+| Verplichte input | Afstand (km) + duur                                    |
+| Afgeleid         | Tempo (run) / snelheid (ride), automatisch             |
+| Extra input      | RPE + notitie, beide optioneel                         |
+| Activiteiten     | `run` + `ride`                                         |
+| Motivatie-metric | Volume & consistentie (week/maand), niet per-sessie PR |
+| Native           | Niet in v1; HealthKit-import als latere additieve fase |
+
+---
+
+## Relatie met bestaande docs
+
+- **[`workout-celebration.md`](workout-celebration.md):** daar is besloten endurance minimaal te houden binnen kracht. Dit document verplaatst cardio naar een **eigen tabel/tabje**, waardoor het krachtscherm puur strength blijft.
+- Endurance-oefeningen die nu nog in de krachtstructuur zitten, kunnen op termijn gemigreerd of uitgefaseerd worden zodra dit cardio-model staat.

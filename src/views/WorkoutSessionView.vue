@@ -81,6 +81,12 @@
       @close="showEditModal = false"
       @save="handleSaveWorkout"
     />
+
+    <Teleport to="body">
+      <Transition name="cel-fade">
+        <WorkoutCelebration v-if="celebrationId != null" :workout-id="celebrationId" />
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -89,6 +95,7 @@ import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import WorkoutExerciseCard from '@/components/WorkoutExerciseCard.vue'
+import WorkoutCelebration from '@/components/WorkoutCelebration.vue'
 import ExercisePicker from '@/components/ExercisePicker.vue'
 import WorkoutEditModal from '@/components/WorkoutEditModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -113,6 +120,7 @@ const showPicker = ref(false)
 const showEditModal = ref(false)
 const showDeleteConfirm = ref(false)
 const saving = ref(false)
+const celebrationId = ref<number | null>(null)
 const loggedSetsByExercise = ref<Record<number, boolean>>({})
 
 const canSaveWorkout = computed(() =>
@@ -155,7 +163,7 @@ async function handleSave() {
   if (result.deleted) {
     router.push('/workout')
   } else {
-    router.push(`/workout/celebration/${route.params.id}`)
+    celebrationId.value = workout.value.id
   }
 }
 
@@ -327,5 +335,16 @@ async function handleSaveWorkout(payload: { name: string | null; date: string; s
   cursor: pointer;
   font-family: var(--font);
   padding: 8px 12px;
+}
+
+/* Cross-fade the celebration overlay in over the session page. */
+.cel-fade-enter-active,
+.cel-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.cel-fade-enter-from,
+.cel-fade-leave-to {
+  opacity: 0;
 }
 </style>

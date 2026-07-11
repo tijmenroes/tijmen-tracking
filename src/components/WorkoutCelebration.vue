@@ -2,6 +2,10 @@
   <div class="cel" :class="`cel--${stats?.tier ?? 'normal'}`">
     <CelebrationBackground v-if="stats" :tier="stats.tier" />
 
+    <button class="cel__close" type="button" title="Sluiten" aria-label="Sluiten" @click="goHome">
+      ×
+    </button>
+
     <div v-if="loading" class="cel__loading">Laden…</div>
     <div v-else-if="error" class="cel__error">{{ error }}</div>
 
@@ -78,8 +82,8 @@
         <button class="cel__btn cel__btn--primary" type="button" @click="goToDetail">
           Bekijk workout
         </button>
-        <button class="cel__btn cel__btn--ghost" type="button" @click="goToDashboard">
-          Naar dashboard
+        <button class="cel__btn cel__btn--ghost" type="button" @click="goHome">
+          Terug naar home
         </button>
       </div>
     </div>
@@ -87,16 +91,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import CelebrationBackground from '@/components/CelebrationBackground.vue'
 import { useWorkoutStats, type ExerciseStat } from '@/composables/useWorkoutStats'
 
-const router = useRouter()
-const route = useRoute()
-const { stats, loading, error, loadStats } = useWorkoutStats()
+const props = defineProps<{ workoutId: number }>()
 
-const workoutId = Number(route.params.id)
+const router = useRouter()
+const { stats, loading, error, loadStats } = useWorkoutStats()
 
 const title = computed(() => stats.value?.workout.name?.trim() || formattedDate.value)
 
@@ -119,14 +122,14 @@ const starCount = computed(() => {
   return 0
 })
 
-onMounted(() => loadStats(workoutId))
+onMounted(() => loadStats(props.workoutId))
 
 function goToDetail() {
-  router.push(`/workout/history/${workoutId}`)
+  router.push(`/workout/history/${props.workoutId}`)
 }
 
-function goToDashboard() {
-  router.push('/workout')
+function goHome() {
+  router.push('/')
 }
 
 function formatVolume(kg: number): string {
@@ -155,7 +158,11 @@ function formatDuration(seconds: number): string {
 
 <style scoped>
 .cel {
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background:
     radial-gradient(120% 80% at 50% 0%, rgba(124, 58, 237, 0.55) 0%, rgba(124, 58, 237, 0) 60%),
     linear-gradient(180deg, #2a1458 0%, #1a0d38 100%);
@@ -172,6 +179,26 @@ function formatDuration(seconds: number): string {
     radial-gradient(120% 80% at 50% 0%, rgba(245, 197, 66, 0.35) 0%, rgba(124, 58, 237, 0) 55%),
     radial-gradient(120% 80% at 50% 0%, rgba(124, 58, 237, 0.6) 0%, rgba(124, 58, 237, 0) 65%),
     linear-gradient(180deg, #2a1458 0%, #1a0d38 100%);
+}
+
+.cel__close {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top));
+  right: 16px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font);
 }
 
 .cel__loading,

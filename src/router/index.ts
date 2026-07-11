@@ -36,12 +36,6 @@ const router = createRouter({
       meta: { requiresAuth: true, navDepth: 2 },
     },
     {
-      path: '/workout/celebration/:id',
-      name: 'workout-celebration',
-      component: () => import('@/views/WorkoutCelebrationView.vue'),
-      meta: { requiresAuth: true, navDepth: 3 },
-    },
-    {
       path: '/workout/export',
       name: 'workout-export',
       component: () => import('@/views/WorkoutExportView.vue'),
