@@ -24,6 +24,7 @@ export interface Workout {
   template_id: number | null
   status: 'active' | 'saved'
   created_at: string
+  saved_at: string | null
 }
 
 export interface WorkoutTemplate {

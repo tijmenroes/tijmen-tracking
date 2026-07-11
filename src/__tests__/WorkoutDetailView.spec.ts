@@ -109,6 +109,7 @@ describe('WorkoutDetailView', () => {
       template_id: null,
       status: 'saved',
       created_at: 'x',
+      saved_at: 'x',
     }
     workoutExercises.value = [weSquat, weBench]
     loading.value = false

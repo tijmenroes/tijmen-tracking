@@ -43,14 +43,19 @@ export const useExercisesStore = defineStore('exercises', () => {
     return inflight
   }
 
-  async function createExercise(name: string, type: Exercise['type'], tagIds: number[] = []) {
+  async function createExercise(
+    name: string,
+    type: Exercise['type'],
+    tagIds: number[] = [],
+    aliases: string[] = [],
+  ) {
     const { data: userData } = await supabase.auth.getUser()
     const user = userData.user
     if (!user) return null
 
     const { data, error: err } = await supabase
       .from('exercises')
-      .insert({ name: name.trim(), type, created_by: user.id })
+      .insert({ name: name.trim(), type, aliases, created_by: user.id })
       .select()
       .single()
     if (err) { error.value = err.message; return null }
@@ -74,10 +79,14 @@ export const useExercisesStore = defineStore('exercises', () => {
     return exercise
   }
 
-  async function updateExercise(id: number, updates: { name?: string; type?: Exercise['type'] }) {
-    const patch: { name?: string; type?: Exercise['type'] } = {}
+  async function updateExercise(
+    id: number,
+    updates: { name?: string; type?: Exercise['type']; aliases?: string[] },
+  ) {
+    const patch: { name?: string; type?: Exercise['type']; aliases?: string[] } = {}
     if (updates.name !== undefined) patch.name = updates.name.trim()
     if (updates.type !== undefined) patch.type = updates.type
+    if (updates.aliases !== undefined) patch.aliases = updates.aliases
 
     const { data, error: err } = await supabase
       .from('exercises')
@@ -91,6 +100,7 @@ export const useExercisesStore = defineStore('exercises', () => {
     if (target) {
       target.name = data.name
       target.type = data.type
+      target.aliases = data.aliases
     }
     exercises.value.sort((a, b) => a.name.localeCompare(b.name))
     return data as Exercise

@@ -155,7 +155,7 @@ async function handleSave() {
   if (result.deleted) {
     router.push('/workout')
   } else {
-    router.push(`/workout/history/${route.params.id}`)
+    router.push(`/workout/celebration/${route.params.id}`)
   }
 }
 

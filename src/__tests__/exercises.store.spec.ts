@@ -103,7 +103,7 @@ describe('exercises store', () => {
   })
 
   it('createExercise links tags and attaches resolved tag objects', async () => {
-    const inserted = { id: 5, name: 'Deadlift', type: 'strength', notes: null, created_by: 'test-user-id', created_at: 'x' }
+    const inserted = { id: 5, name: 'Deadlift', type: 'strength', notes: null, aliases: ['DL'], created_by: 'test-user-id', created_at: 'x' }
     const tagRows = [
       { id: 1, name: 'compound', created_at: 'x' },
       { id: 2, name: 'back', created_at: 'x' },
@@ -113,13 +113,14 @@ describe('exercises store', () => {
     mockTagsIn.mockResolvedValue({ data: tagRows, error: null })
 
     const store = useExercisesStore()
-    const result = await store.createExercise('Deadlift', 'strength', [1, 2])
+    const result = await store.createExercise('Deadlift', 'strength', [1, 2], ['DL'])
 
     expect(mockExerciseTagsInsert).toHaveBeenCalledWith([
       { exercise_id: 5, tag_id: 1 },
       { exercise_id: 5, tag_id: 2 },
     ])
     expect(result?.tags).toEqual(tagRows)
+    expect(result?.aliases).toEqual(['DL'])
     expect(store.exercises[0]?.name).toBe('Deadlift')
   })
 
@@ -134,22 +135,23 @@ describe('exercises store', () => {
     expect(result?.tags).toEqual([])
   })
 
-  it('updateExercise patches name/type and re-sorts the list', async () => {
+  it('updateExercise patches name/type/aliases and re-sorts the list', async () => {
     mockExercisesOrder.mockResolvedValue({
       data: [
-        { id: 1, name: 'Zercher Squat', type: 'strength', notes: null, created_by: null, created_at: 'x', tags: [] },
-        { id: 2, name: 'Bench', type: 'strength', notes: null, created_by: null, created_at: 'x', tags: [] },
+        { id: 1, name: 'Zercher Squat', type: 'strength', notes: null, aliases: [], created_by: null, created_at: 'x', tags: [] },
+        { id: 2, name: 'Bench', type: 'strength', notes: null, aliases: [], created_by: null, created_at: 'x', tags: [] },
       ],
       error: null,
     })
-    const updated = { id: 1, name: 'Ab Wheel', type: 'strength', notes: null, created_by: null, created_at: 'x' }
+    const updated = { id: 1, name: 'Ab Wheel', type: 'strength', notes: null, aliases: ['AW'], created_by: null, created_at: 'x' }
     mockExerciseUpdateSingle.mockResolvedValue({ data: updated, error: null })
 
     const store = useExercisesStore()
     await store.fetchExercises()
-    await store.updateExercise(1, { name: 'Ab Wheel' })
+    await store.updateExercise(1, { name: 'Ab Wheel', aliases: ['AW'] })
 
     expect(store.exercises.find((e) => e.id === 1)?.name).toBe('Ab Wheel')
+    expect(store.exercises.find((e) => e.id === 1)?.aliases).toEqual(['AW'])
     expect(store.exercises.map((e) => e.name)).toEqual(['Ab Wheel', 'Bench'])
   })
 

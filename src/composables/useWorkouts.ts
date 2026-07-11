@@ -290,7 +290,7 @@ export function useWorkouts() {
 
     const { data, error: updErr } = await supabase
       .from('workouts')
-      .update({ status: 'saved' })
+      .update({ status: 'saved', saved_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single()

@@ -38,6 +38,13 @@
           @create="handleCreateTag"
         />
 
+        <input
+          v-model="newAliases"
+          class="exercises__input exercises__input--full"
+          type="text"
+          placeholder="Aliassen (komma-gescheiden, bijv. RDL, stiff leg deadlift)"
+        >
+
         <button
           class="exercises__create-btn"
           :disabled="!newName.trim()"
@@ -101,6 +108,12 @@
           <option value="endurance">Uithouding</option>
         </select>
       </div>
+      <input
+        v-model="editAliases"
+        class="exercises__input exercises__input--full"
+        type="text"
+        placeholder="Aliassen (komma-gescheiden, bijv. RDL, stiff leg deadlift)"
+      >
       <div class="exercises__tags-label">Spiergroepen / tags</div>
       <TagSelector v-model="editTagIds" :tags="tags" @create="handleCreateTagEdit" />
       <template #footer>
@@ -145,6 +158,7 @@ const { fetchTags, createTag } = tagsStore
 
 const newName = ref('')
 const newType = ref<Exercise['type']>('strength')
+const newAliases = ref('')
 const selectedTagIds = ref<number[]>([])
 
 const query = ref('')
@@ -156,7 +170,16 @@ const confirmTarget = ref<Exercise | null>(null)
 const editTarget = ref<Exercise | null>(null)
 const editName = ref('')
 const editType = ref<Exercise['type']>('strength')
+const editAliases = ref('')
 const editTagIds = ref<number[]>([])
+
+function parseAliases(input: string): string[] {
+  return input.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+function formatAliases(aliases: string[] | undefined): string {
+  return (aliases ?? []).join(', ')
+}
 
 onMounted(async () => {
   await profileStore.load()
@@ -170,8 +193,9 @@ async function handleCreateTag(name: string) {
 
 async function handleCreate() {
   if (!newName.value.trim()) return
-  await createExercise(newName.value, newType.value, selectedTagIds.value)
+  await createExercise(newName.value, newType.value, selectedTagIds.value, parseAliases(newAliases.value))
   newName.value = ''
+  newAliases.value = ''
   selectedTagIds.value = []
 }
 
@@ -185,6 +209,7 @@ function openEdit(ex: Exercise) {
   editTarget.value = ex
   editName.value = ex.name
   editType.value = ex.type
+  editAliases.value = formatAliases(ex.aliases)
   editTagIds.value = (ex.tags ?? []).map((t) => t.id)
 }
 
@@ -196,7 +221,11 @@ async function handleCreateTagEdit(name: string) {
 async function handleSaveEdit() {
   if (!editTarget.value || !editName.value.trim()) return
   const id = editTarget.value.id
-  await updateExercise(id, { name: editName.value, type: editType.value })
+  await updateExercise(id, {
+    name: editName.value,
+    type: editType.value,
+    aliases: parseAliases(editAliases.value),
+  })
   await updateExerciseTags(id, editTagIds.value)
   editTarget.value = null
 }
@@ -286,6 +315,12 @@ async function handleSaveEdit() {
 .exercises__input:focus {
   outline: none;
   border-color: var(--color-primary);
+}
+
+.exercises__input--full {
+  flex: none;
+  width: 100%;
+  margin-bottom: 10px;
 }
 
 .exercises__select {
