@@ -26,6 +26,11 @@
         <div class="metric-card__label">Oefeningen beheren</div>
         <div class="metric-card__chevron">›</div>
       </button>
+      <button class="metric-card" @click="router.push('/profile')">
+        <div class="metric-card__icon">👤</div>
+        <div class="metric-card__label">Profiel</div>
+        <div class="metric-card__chevron">›</div>
+      </button>
     </div>
 
     <p class="home__build">{{ buildLabel }}</p>

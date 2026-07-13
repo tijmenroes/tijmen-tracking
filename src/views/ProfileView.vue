@@ -11,6 +11,31 @@
     <div v-if="loading" class="profile__loading">Laden…</div>
 
     <div v-else class="profile__content">
+      <!-- Appearance / theme -->
+      <div class="card profile__section">
+        <div class="profile__section-label">Weergave</div>
+        <div class="theme-toggle" role="group" aria-label="Thema kiezen">
+          <button
+            type="button"
+            class="theme-toggle__option"
+            :class="{ 'theme-toggle__option--active': theme === 'light' }"
+            :aria-pressed="theme === 'light'"
+            @click="setTheme('light')"
+          >
+            ☀️ Licht
+          </button>
+          <button
+            type="button"
+            class="theme-toggle__option"
+            :class="{ 'theme-toggle__option--active': theme === 'dark' }"
+            :aria-pressed="theme === 'dark'"
+            @click="setTheme('dark')"
+          >
+            🌙 Donker
+          </button>
+        </div>
+      </div>
+
       <!-- Current weight (read-only, from weight logs) -->
       <div class="card profile__section">
         <div class="profile__section-label">Huidig gewicht</div>
@@ -75,8 +100,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProfileStore } from '@/stores/profile'
 import { useWeights } from '@/composables/useWeights'
+import { useTheme } from '@/composables/useTheme'
 
 const router = useRouter()
+const { theme, setTheme } = useTheme()
 const profileStore = useProfileStore()
 const { weights, fetchWeights } = useWeights()
 
@@ -279,5 +306,33 @@ async function handleSave() {
 .profile__save:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.theme-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: var(--color-chip);
+  border-radius: 12px;
+}
+
+.theme-toggle__option {
+  height: 40px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-2);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background-color 150ms, color 150ms, box-shadow 150ms;
+}
+
+.theme-toggle__option--active {
+  background: var(--color-card);
+  color: var(--color-text);
+  box-shadow: var(--shadow-chip-active);
 }
 </style>
