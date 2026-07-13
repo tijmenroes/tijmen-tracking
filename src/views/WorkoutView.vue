@@ -106,9 +106,9 @@
             @click="router.push(`/workout/history/${w.id}`)"
           >
             <div class="wdash__item-info">
-              <span class="wdash__item-name">{{ w.name || formatDate(w.date) }}</span>
+              <span class="wdash__item-name">{{ w.name || w.template_name || formatDate(w.date) }}</span>
               <span class="wdash__item-sub">
-                <template v-if="w.name">{{ formatDate(w.date) }} · </template>{{ w.exercise_count }} {{ w.exercise_count === 1 ? 'oefening' : 'oefeningen' }}
+                <template v-if="w.name || w.template_name">{{ formatDate(w.date) }} · </template>{{ w.exercise_count }} {{ w.exercise_count === 1 ? 'oefening' : 'oefeningen' }}
               </span>
             </div>
             <span class="wdash__item-chevron">›</span>

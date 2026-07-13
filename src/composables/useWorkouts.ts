@@ -27,12 +27,16 @@ export function useWorkouts() {
 
   const templateWorkouts = ref<WorkoutSummary[]>([])
 
-  type SummaryRow = Workout & { workout_exercises?: { count: number }[] }
+  type SummaryRow = Workout & {
+    workout_exercises?: { count: number }[]
+    template?: { name: string } | null
+  }
   function toSummaries(rows: SummaryRow[]): WorkoutSummary[] {
     return rows
-      .map(({ workout_exercises, ...rest }) => ({
+      .map(({ workout_exercises, template, ...rest }) => ({
         ...rest,
         exercise_count: workout_exercises?.[0]?.count ?? 0,
+        template_name: template?.name ?? null,
       }))
       .filter((w) => w.exercise_count > 0)
   }
@@ -146,7 +150,7 @@ export function useWorkouts() {
     // !inner → only workouts that have at least one exercise
     const { data, error: err } = await supabase
       .from('workouts')
-      .select('*, workout_exercises!inner(count)')
+      .select('*, workout_exercises!inner(count), template:workout_templates(name)')
       .eq('user_id', userId)
       .eq('status', 'saved')
       .order('created_at', { ascending: false })
@@ -165,7 +169,7 @@ export function useWorkouts() {
 
     const { data, count, error: err } = await supabase
       .from('workouts')
-      .select('*, workout_exercises!inner(count)', { count: 'exact' })
+      .select('*, workout_exercises!inner(count), template:workout_templates(name)', { count: 'exact' })
       .eq('user_id', userId)
       .eq('status', 'saved')
       .order('created_at', { ascending: false })
@@ -185,7 +189,7 @@ export function useWorkouts() {
 
     const { data, error: err } = await supabase
       .from('workouts')
-      .select('*, workout_exercises!inner(count)')
+      .select('*, workout_exercises!inner(count), template:workout_templates(name)')
       .eq('user_id', userId)
       .eq('template_id', templateId)
       .eq('status', 'saved')

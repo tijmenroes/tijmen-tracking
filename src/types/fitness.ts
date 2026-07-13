@@ -62,6 +62,8 @@ export interface TemplateExerciseProgress {
 
 export interface WorkoutSummary extends Workout {
   exercise_count: number
+  /** Name of the template this workout was started from, if any. */
+  template_name?: string | null
 }
 
 export interface WorkoutExercise {
