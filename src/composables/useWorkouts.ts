@@ -19,6 +19,8 @@ export function useWorkouts() {
   const exercisesStore = useExercisesStore()
   const workout = ref<Workout | null>(null)
   const workoutExercises = ref<WorkoutExercise[]>([])
+  /** Per-exercise guidance notes from the template this workout was started from. */
+  const templateNotes = ref<Map<number, string>>(new Map())
   const recentWorkouts = ref<WorkoutSummary[]>([])
   const workoutsPage = ref<WorkoutSummary[]>([])
   const totalWorkouts = ref(0)
@@ -137,7 +139,27 @@ export function useWorkouts() {
     if (err) { error.value = err.message; loading.value = false; return }
     workout.value = data
     await fetchWorkoutExercises()
+    await fetchTemplateNotes(data.template_id)
     loading.value = false
+  }
+
+  /**
+   * Load the per-exercise notes from the template this workout was started from,
+   * keyed by exercise_id. No-op (and clears) when the workout isn't tied to a
+   * template (e.g. an ad-hoc workout or a since-deleted template).
+   */
+  async function fetchTemplateNotes(templateId: number | null) {
+    if (!templateId) { templateNotes.value = new Map(); return }
+    const { data, error: err } = await supabase
+      .from('template_exercises')
+      .select('exercise_id, note')
+      .eq('template_id', templateId)
+    if (err) { templateNotes.value = new Map(); return }
+    const map = new Map<number, string>()
+    for (const row of data ?? []) {
+      if (typeof row.note === 'string' && row.note.trim()) map.set(row.exercise_id, row.note)
+    }
+    templateNotes.value = map
   }
 
   /** Fetch the most recent workouts (with exercise counts) for the dashboard. */
@@ -386,6 +408,7 @@ export function useWorkouts() {
   return {
     workout,
     workoutExercises,
+    templateNotes,
     recentWorkouts,
     workoutsPage,
     totalWorkouts,

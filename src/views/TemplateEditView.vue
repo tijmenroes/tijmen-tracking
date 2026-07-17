@@ -27,19 +27,28 @@
             'tedit__item--over': dragOverIndex === idx && dragFromIndex !== null && dragFromIndex !== idx,
           }"
         >
-          <button
-            type="button"
-            class="tedit__drag"
-            aria-label="Verslepen om volgorde te wijzigen"
-            @pointerdown="onDragHandlePointerDown($event, idx)"
-            @pointermove="onDragHandlePointerMove"
-            @pointerup="onDragHandlePointerUp"
-            @pointercancel="onDragHandlePointerUp"
+          <div class="tedit__item-row">
+            <button
+              type="button"
+              class="tedit__drag"
+              aria-label="Verslepen om volgorde te wijzigen"
+              @pointerdown="onDragHandlePointerDown($event, idx)"
+              @pointermove="onDragHandlePointerMove"
+              @pointerup="onDragHandlePointerUp"
+              @pointercancel="onDragHandlePointerUp"
+            >
+              ⠿
+            </button>
+            <span class="tedit__item-name">{{ te.exercise?.name ?? 'Oefening' }}</span>
+            <button class="tedit__item-del" type="button" title="Verwijderen" @click="handleRemove(te.id)">×</button>
+          </div>
+          <input
+            class="tedit__item-note"
+            type="text"
+            placeholder="Notitie (bijv. 3 × 6-8)"
+            :value="te.note ?? ''"
+            @change="handleNoteChange(te.id, $event)"
           >
-            ⠿
-          </button>
-          <span class="tedit__item-name">{{ te.exercise?.name ?? 'Oefening' }}</span>
-          <button class="tedit__item-del" type="button" title="Verwijderen" @click="handleRemove(te.id)">×</button>
         </li>
       </ul>
 
@@ -91,6 +100,7 @@ const {
   loadTemplate,
   renameTemplate,
   addExerciseToTemplate,
+  updateTemplateExerciseNote,
   removeExerciseFromTemplate,
   reorderTemplateExercises,
 } = templatesStore
@@ -133,6 +143,11 @@ async function handleConfirmExercises(selected: Exercise[]) {
 
 async function handleRemove(templateExerciseId: number) {
   await removeExerciseFromTemplate(templateExerciseId)
+}
+
+async function handleNoteChange(templateExerciseId: number, event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  await updateTemplateExerciseNote(templateExerciseId, value)
 }
 
 function dropIndexFromY(clientY: number): number {
@@ -265,14 +280,37 @@ async function onDragHandlePointerUp(event: PointerEvent) {
 
 .tedit__item {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   padding: 14px 18px;
   border-bottom: 1px solid var(--color-hairline);
 }
 
 .tedit__item:last-child {
   border-bottom: none;
+}
+
+.tedit__item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tedit__item-note {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 10px;
+  background: var(--color-card-2);
+  padding: 0 12px;
+  font-size: 14px;
+  font-family: var(--font);
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.tedit__item-note::placeholder {
+  color: var(--color-text-3);
 }
 
 .tedit__item--dragging {

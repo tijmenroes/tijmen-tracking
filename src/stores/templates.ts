@@ -159,6 +159,18 @@ export const useTemplatesStore = defineStore('templates', () => {
     return data as TemplateExercise
   }
 
+  async function updateTemplateExerciseNote(templateExerciseId: number, note: string) {
+    const trimmed = note.trim()
+    const value = trimmed.length > 0 ? trimmed : null
+    const { error: err } = await supabase
+      .from('template_exercises')
+      .update({ note: value })
+      .eq('id', templateExerciseId)
+    if (err) { error.value = err.message; return }
+    const target = templateExercises.value.find((te) => te.id === templateExerciseId)
+    if (target) target.note = value
+  }
+
   async function removeExerciseFromTemplate(templateExerciseId: number) {
     const { error: err } = await supabase
       .from('template_exercises')
@@ -308,6 +320,7 @@ export const useTemplatesStore = defineStore('templates', () => {
     renameTemplate,
     deleteTemplate,
     addExerciseToTemplate,
+    updateTemplateExerciseNote,
     removeExerciseFromTemplate,
     reorderTemplateExercises,
     fetchTemplateExerciseProgress,

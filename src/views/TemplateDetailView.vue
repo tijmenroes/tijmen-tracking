@@ -42,6 +42,9 @@
             class="tdetail__progress-card card"
           >
             <h3 class="tdetail__progress-name">{{ item.exercise_name }}</h3>
+            <p v-if="noteByExerciseId.get(item.exercise_id)" class="tdetail__progress-note">
+              {{ noteByExerciseId.get(item.exercise_id) }}
+            </p>
             <div v-if="item.rows.length === 0" class="tdetail__progress-empty">
               Nog geen sets gelogd.
             </div>
@@ -105,6 +108,10 @@ const starting = ref(false)
 const showDeleteConfirm = ref(false)
 const progressLoading = ref(false)
 const exerciseProgress = ref<TemplateExerciseProgress[]>([])
+
+const noteByExerciseId = computed(
+  () => new Map(templateExercises.value.map((te) => [te.exercise_id, te.note])),
+)
 
 onMounted(async () => {
   await loadTemplate(templateId.value)
@@ -266,6 +273,12 @@ async function handleDelete() {
   font-size: 16px;
   font-weight: 700;
   color: var(--color-text);
+  margin: 0 0 4px;
+}
+
+.tdetail__progress-note {
+  font-size: 13px;
+  color: var(--color-text-2);
   margin: 0 0 10px;
 }
 

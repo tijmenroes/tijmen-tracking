@@ -31,6 +31,7 @@
           v-for="we in workoutExercises"
           :key="we.id"
           :workout-exercise="we"
+          :template-note="templateNotes.get(we.exercise_id) ?? null"
           :on-update-extra="updateWorkoutExercise"
           @remove="handleRemoveExercise"
           @logged-sets-change="(hasLogged) => onLoggedSetsChange(we.id, hasLogged)"
@@ -107,7 +108,7 @@ import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
 const route = useRoute()
-const { workout, workoutExercises, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
+const { workout, workoutExercises, templateNotes, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
 const exercisesStore = useExercisesStore()
 const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
 const { fetchExercises } = exercisesStore

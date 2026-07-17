@@ -1,13 +1,16 @@
 <template>
   <div class="we-card">
     <div class="we-card__header">
-      <div class="we-card__title-row">
-        <button class="we-card__name" @click="$emit('detail', workoutExercise)">
-          {{ workoutExercise.exercise?.name }}
-        </button>
-        <span class="we-card__badge" :class="`we-card__badge--${workoutExercise.exercise?.type}`">
-          {{ workoutExercise.exercise?.type === 'strength' ? 'Kracht' : 'Uithouding' }}
-        </span>
+      <div class="we-card__title-block">
+        <div class="we-card__title-row">
+          <button class="we-card__name" @click="$emit('detail', workoutExercise)">
+            {{ workoutExercise.exercise?.name }}
+          </button>
+          <span class="we-card__badge" :class="`we-card__badge--${workoutExercise.exercise?.type}`">
+            {{ workoutExercise.exercise?.type === 'strength' ? 'Kracht' : 'Uithouding' }}
+          </span>
+        </div>
+        <p v-if="templateNote" class="we-card__subtitle">{{ templateNote }}</p>
       </div>
       <button class="we-card__remove" title="Verwijder oefening" @click="handleRemoveClick">×</button>
     </div>
@@ -146,6 +149,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const props = defineProps<{
   workoutExercise: WorkoutExercise
+  templateNote?: string | null
   onUpdateExtra: (id: number, payload: { notes?: string | null; pain_scale?: number | null }) => Promise<void>
 }>()
 
@@ -287,12 +291,22 @@ async function saveExtra() {
   margin-bottom: 12px;
 }
 
+.we-card__title-block {
+  flex: 1;
+  min-width: 0;
+}
+
 .we-card__title-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
   flex-wrap: wrap;
+}
+
+.we-card__subtitle {
+  font-size: 13px;
+  color: var(--color-text-2);
+  margin: 3px 0 0;
 }
 
 .we-card__name {

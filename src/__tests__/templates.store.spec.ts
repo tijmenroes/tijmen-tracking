@@ -156,9 +156,9 @@ describe('templates store', () => {
 
     const store = useTemplatesStore()
     store.templateExercises = [
-      { id: 1, template_id: 9, exercise_id: 3, sort_order: 0, created_at: 'x', exercise: { id: 3, name: 'Squat', type: 'strength', notes: null, created_by: null, created_at: 'x' } },
-      { id: 2, template_id: 9, exercise_id: 5, sort_order: 1, created_at: 'x', exercise: { id: 5, name: 'Bench', type: 'strength', notes: null, created_by: null, created_at: 'x' } },
-      { id: 3, template_id: 9, exercise_id: 7, sort_order: 2, created_at: 'x', exercise: { id: 7, name: 'Row', type: 'strength', notes: null, created_by: null, created_at: 'x' } },
+      { id: 1, template_id: 9, exercise_id: 3, sort_order: 0, note: null, created_at: 'x', exercise: { id: 3, name: 'Squat', type: 'strength', notes: null, created_by: null, created_at: 'x' } },
+      { id: 2, template_id: 9, exercise_id: 5, sort_order: 1, note: null, created_at: 'x', exercise: { id: 5, name: 'Bench', type: 'strength', notes: null, created_by: null, created_at: 'x' } },
+      { id: 3, template_id: 9, exercise_id: 7, sort_order: 2, note: null, created_at: 'x', exercise: { id: 7, name: 'Row', type: 'strength', notes: null, created_by: null, created_at: 'x' } },
     ]
 
     await store.reorderTemplateExercises(0, 2)
@@ -166,6 +166,20 @@ describe('templates store', () => {
     expect(store.templateExercises.map((te) => te.id)).toEqual([2, 3, 1])
     expect(store.templateExercises.map((te) => te.sort_order)).toEqual([0, 1, 2])
     expect(mockTeUpdateSelect).toHaveBeenCalledTimes(3)
+  })
+
+  it('updateTemplateExerciseNote saves the note and syncs local state', async () => {
+    const store = useTemplatesStore()
+    store.templateExercises = [
+      { id: 1, template_id: 9, exercise_id: 3, sort_order: 0, note: null, created_at: 'x', exercise: { id: 3, name: 'Squat', type: 'strength', notes: null, created_by: null, created_at: 'x' } },
+    ]
+
+    await store.updateTemplateExerciseNote(1, '  3 × 6-8  ')
+    expect(store.templateExercises[0]!.note).toBe('3 × 6-8')
+
+    // Blank input clears the note back to null.
+    await store.updateTemplateExerciseNote(1, '   ')
+    expect(store.templateExercises[0]!.note).toBeNull()
   })
 
   it('loadTemplate fetches template and exercises', async () => {
@@ -188,6 +202,7 @@ describe('templates store', () => {
         template_id: 9,
         exercise_id: 3,
         sort_order: 0,
+        note: null,
         created_at: 'x',
         exercise: { id: 3, name: 'Back extension', type: 'strength' as const, notes: null, created_by: null, created_at: 'x' },
       },

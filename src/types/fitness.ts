@@ -40,6 +40,7 @@ export interface TemplateExercise {
   template_id: number
   exercise_id: number
   sort_order: number
+  note: string | null
   created_at: string
   exercise?: Exercise
 }
