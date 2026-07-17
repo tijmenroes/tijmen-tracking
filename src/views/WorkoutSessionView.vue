@@ -28,10 +28,12 @@
 
       <div class="workout__exercises">
         <WorkoutExerciseCard
-          v-for="we in workoutExercises"
+          v-for="we in visibleExercises"
           :key="we.id"
           :workout-exercise="we"
           :template-note="templateNotes.get(we.exercise_id) ?? null"
+          :initial-sets="workoutExerciseSets.get(we.id) ?? []"
+          :previous-sets="previousSetsByExercise.get(we.exercise_id) ?? []"
           :on-update-extra="updateWorkoutExercise"
           @remove="handleRemoveExercise"
           @logged-sets-change="(hasLogged) => onLoggedSetsChange(we.id, hasLogged)"
@@ -108,7 +110,7 @@ import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
 const route = useRoute()
-const { workout, workoutExercises, templateNotes, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
+const { workout, workoutExercises, workoutExerciseSets, previousSetsByExercise, fetchPreviousSetsForExercises, templateNotes, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
 const exercisesStore = useExercisesStore()
 const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
 const { fetchExercises } = exercisesStore
@@ -124,6 +126,20 @@ const saving = ref(false)
 const celebrationId = ref<number | null>(null)
 const loggedSetsByExercise = ref<Record<number, boolean>>({})
 
+// Render the first few cards immediately, then reveal the rest a frame at a time
+// so the initial paint isn't blocked by every exercise below the fold.
+const CARD_BATCH = 4
+const visibleCount = ref(CARD_BATCH)
+const visibleExercises = computed(() => workoutExercises.value.slice(0, visibleCount.value))
+
+function revealRemainingCards() {
+  if (visibleCount.value >= workoutExercises.value.length) return
+  requestAnimationFrame(() => {
+    visibleCount.value += CARD_BATCH
+    revealRemainingCards()
+  })
+}
+
 const canSaveWorkout = computed(() =>
   workoutExercises.value.some((we) => loggedSetsByExercise.value[we.id]),
 )
@@ -137,12 +153,30 @@ const formattedDate = computed(() => {
 onMounted(async () => {
   await Promise.all([fetchExercises(), fetchTags()])
   await loadWorkout(Number(route.params.id))
+  revealRemainingCards()
+  // Load the "vorige keer" reference in the background so the exercises (with
+  // their current sets) render first; the previous-session data fills in after.
+  if (workout.value) {
+    fetchPreviousSetsForExercises(
+      workoutExercises.value.map((we) => we.exercise_id),
+      workout.value.id,
+    )
+  }
 })
 
 async function handleConfirmExercises(selected: Exercise[]) {
   showPicker.value = false
   for (const ex of selected) {
     await addExerciseToWorkout(ex.id)
+  }
+  // Make sure newly added exercises aren't hidden behind the progressive reveal.
+  visibleCount.value = workoutExercises.value.length
+  // Refresh the "vorige keer" reference so newly added exercises get theirs too.
+  if (workout.value) {
+    fetchPreviousSetsForExercises(
+      workoutExercises.value.map((we) => we.exercise_id),
+      workout.value.id,
+    )
   }
 }
 

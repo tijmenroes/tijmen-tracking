@@ -20,6 +20,10 @@ export const useAuthStore = defineStore('auth', () => {
   async function signOut() {
     await supabase.auth.signOut()
     session.value = null
+    // Drop cached API responses so a next account on this device can't read them.
+    if (typeof caches !== 'undefined') {
+      await caches.delete('supabase-rest')
+    }
   }
 
   return { session, user, isAuthenticated, initialize, signOut }

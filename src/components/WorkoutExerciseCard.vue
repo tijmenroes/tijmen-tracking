@@ -142,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import type { WorkoutExercise, ExerciseSet } from '@/types/fitness'
 import { useExerciseSets } from '@/composables/useExerciseSets'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -150,6 +150,10 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 const props = defineProps<{
   workoutExercise: WorkoutExercise
   templateNote?: string | null
+  /** Current sets, loaded in bulk by the parent (no per-card fetch). */
+  initialSets?: ExerciseSet[]
+  /** Previous-session sets for the "vorige keer" reference; may arrive after mount. */
+  previousSets?: ExerciseSet[]
   onUpdateExtra: (id: number, payload: { notes?: string | null; pain_scale?: number | null }) => Promise<void>
 }>()
 
@@ -159,7 +163,9 @@ const emit = defineEmits<{
   (e: 'logged-sets-change', hasLogged: boolean): void
 }>()
 
-const { sets, previousSets, fetchSets, fetchPreviousSets, addSet, updateSet: updateSetData, deleteSet, applyPreviousSets } = useExerciseSets()
+const { sets, addSet, updateSet: updateSetData, deleteSet, applyPreviousSets } = useExerciseSets()
+
+const previousSets = computed(() => props.previousSets ?? [])
 
 const accordionOpen = ref(false)
 const applyingPrevious = ref(false)
@@ -168,10 +174,8 @@ const localNotes = ref<string>(props.workoutExercise.notes ?? '')
 const localPainScale = ref<number | null>(props.workoutExercise.pain_scale ?? null)
 
 onMounted(async () => {
-  await fetchSets(props.workoutExercise.id)
-  if (props.workoutExercise.exercise_id) {
-    await fetchPreviousSets(props.workoutExercise.exercise_id, props.workoutExercise.workout_id)
-  }
+  // Sets are provided by the parent in one bulk fetch; seed local state from them.
+  sets.value = [...(props.initialSets ?? [])]
   if (sets.value.length === 0) {
     await handleAddSet()
   }
@@ -203,7 +207,7 @@ async function handleDeleteSet(id: number) {
 async function handleApplyPrevious() {
   if (previousSets.value.length === 0 || applyingPrevious.value) return
   applyingPrevious.value = true
-  await applyPreviousSets(props.workoutExercise.id)
+  await applyPreviousSets(props.workoutExercise.id, previousSets.value)
   applyingPrevious.value = false
 }
 

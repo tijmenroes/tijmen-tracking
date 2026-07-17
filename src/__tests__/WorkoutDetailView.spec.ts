@@ -77,6 +77,7 @@ vi.mock('@/lib/supabase', () => ({
 
 const workout = ref<Workout | null>(null)
 const workoutExercises = ref<WorkoutExercise[]>([])
+const workoutExerciseSets = ref<Map<number, ExerciseSet[]>>(new Map())
 const loading = ref(false)
 const error = ref<string | null>(null)
 
@@ -89,6 +90,7 @@ vi.mock('@/composables/useWorkouts', () => ({
   useWorkouts: () => ({
     workout,
     workoutExercises,
+    workoutExerciseSets,
     loading,
     error,
     loadWorkout: mockLoadWorkout,
@@ -112,6 +114,7 @@ describe('WorkoutDetailView', () => {
       saved_at: 'x',
     }
     workoutExercises.value = [weSquat, weBench]
+    workoutExerciseSets.value = new Map([[20, squatSets], [21, benchSets]])
     loading.value = false
     error.value = null
     mockLoadWorkout.mockResolvedValue(undefined)

@@ -169,9 +169,11 @@ onMounted(async () => {
   const userId = userData.user?.id
   if (!userId) { loading.value = false; return }
 
+  // Embed the sets so the whole history arrives in one request instead of one
+  // query per session.
   const { data: weRows, error: weErr } = await supabase
     .from('workout_exercises')
-    .select('id, notes, pain_scale, workout:workouts!inner(date, user_id)')
+    .select('id, notes, pain_scale, exercise_sets(*), workout:workouts!inner(date, user_id)')
     .eq('exercise_id', exerciseId)
     .eq('workout.user_id', userId)
     .order('workout(date)', { ascending: false })
@@ -180,15 +182,13 @@ onMounted(async () => {
   const sessions: SessionHistory[] = []
   for (const we of weRows ?? []) {
     const workout = we.workout as unknown as { date: string; user_id: string }
-    const { data: setsData } = await supabase
-      .from('exercise_sets')
-      .select('*')
-      .eq('workout_exercise_id', we.id)
-      .order('set_number')
-    if (setsData && setsData.length > 0) {
+    const setsData = [...((we.exercise_sets ?? []) as ExerciseSet[])].sort(
+      (a, b) => a.set_number - b.set_number,
+    )
+    if (setsData.length > 0) {
       sessions.push({
         date: workout.date,
-        sets: setsData as ExerciseSet[],
+        sets: setsData,
         sessionNotes: we.notes ?? null,
         pain_scale: we.pain_scale ?? null,
       })

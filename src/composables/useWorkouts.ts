@@ -19,6 +19,10 @@ export function useWorkouts() {
   const exercisesStore = useExercisesStore()
   const workout = ref<Workout | null>(null)
   const workoutExercises = ref<WorkoutExercise[]>([])
+  /** Current sets per workout_exercise id, loaded together with the exercises. */
+  const workoutExerciseSets = ref<Map<number, ExerciseSet[]>>(new Map())
+  /** Previous-session sets per exercise id (loaded separately, in the background). */
+  const previousSetsByExercise = ref<Map<number, ExerciseSet[]>>(new Map())
   /** Per-exercise guidance notes from the template this workout was started from. */
   const templateNotes = ref<Map<number, string>>(new Map())
   const recentWorkouts = ref<WorkoutSummary[]>([])
@@ -361,13 +365,73 @@ export function useWorkouts() {
   async function fetchWorkoutExercises() {
     if (!workout.value) return
     await exercisesStore.fetchExercises()
+    // Embed the sets so all of them arrive in one request instead of one per
+    // exercise (avoids an N+1 waterfall on the session and detail screens).
     const { data, error: err } = await supabase
       .from('workout_exercises')
-      .select('*')
+      .select('*, exercise_sets(*)')
       .eq('workout_id', workout.value.id)
       .order('sort_order')
     if (err) { error.value = err.message; return }
-    workoutExercises.value = (data ?? []).map(attachExercise)
+
+    const setsMap = new Map<number, ExerciseSet[]>()
+    const rows = (data ?? []).map((row) => {
+      const { exercise_sets, ...we } = row as Omit<WorkoutExercise, 'exercise'> & {
+        exercise_sets?: ExerciseSet[]
+      }
+      const sets = [...(exercise_sets ?? [])].sort((a, b) => a.set_number - b.set_number)
+      setsMap.set(we.id, sets)
+      return we
+    })
+    workoutExercises.value = rows.map(attachExercise)
+    workoutExerciseSets.value = setsMap
+  }
+
+  /**
+   * Load the most recent previous-session sets for a batch of exercises in two
+   * queries (rather than two per exercise). Populates previousSetsByExercise.
+   * Excludes the current workout so same-day repeats don't reference themselves.
+   */
+  async function fetchPreviousSetsForExercises(exerciseIds: number[], currentWorkoutId: number) {
+    previousSetsByExercise.value = new Map()
+    const ids = [...new Set(exerciseIds)]
+    if (!ids.length) return
+
+    const { data: weRows, error: weErr } = await supabase
+      .from('workout_exercises')
+      .select('id, exercise_id, created_at')
+      .in('exercise_id', ids)
+      .neq('workout_id', currentWorkoutId)
+      .order('created_at', { ascending: false })
+    if (weErr) { error.value = weErr.message; return }
+
+    // First row per exercise is the most recent (rows are newest-first).
+    const latestWeByExercise = new Map<number, number>()
+    for (const r of weRows ?? []) {
+      if (!latestWeByExercise.has(r.exercise_id)) latestWeByExercise.set(r.exercise_id, r.id)
+    }
+    const weIds = [...latestWeByExercise.values()]
+    if (!weIds.length) return
+
+    const { data: setsRows, error: setsErr } = await supabase
+      .from('exercise_sets')
+      .select('*')
+      .in('workout_exercise_id', weIds)
+      .order('set_number')
+    if (setsErr) { error.value = setsErr.message; return }
+
+    const setsByWe = new Map<number, ExerciseSet[]>()
+    for (const s of (setsRows ?? []) as ExerciseSet[]) {
+      const list = setsByWe.get(s.workout_exercise_id) ?? []
+      list.push(s)
+      setsByWe.set(s.workout_exercise_id, list)
+    }
+
+    const result = new Map<number, ExerciseSet[]>()
+    for (const [exId, weId] of latestWeByExercise) {
+      result.set(exId, setsByWe.get(weId) ?? [])
+    }
+    previousSetsByExercise.value = result
   }
 
   async function addExerciseToWorkout(exerciseId: number) {
@@ -407,6 +471,9 @@ export function useWorkouts() {
   return {
     workout,
     workoutExercises,
+    workoutExerciseSets,
+    previousSetsByExercise,
+    fetchPreviousSetsForExercises,
     templateNotes,
     recentWorkouts,
     workoutsPage,

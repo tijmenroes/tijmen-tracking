@@ -119,7 +119,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { supabase } from '@/lib/supabase'
 import { useWorkouts } from '@/composables/useWorkouts'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import WorkoutEditModal from '@/components/WorkoutEditModal.vue'
@@ -133,7 +132,7 @@ interface ExerciseDetail {
 
 const router = useRouter()
 const route = useRoute()
-const { workout, workoutExercises, loading, error, loadWorkout, deleteWorkout, updateWorkout } = useWorkouts()
+const { workout, workoutExercises, workoutExerciseSets, loading, error, loadWorkout, deleteWorkout, updateWorkout } = useWorkouts()
 const { createTemplateFromWorkout } = useTemplatesStore()
 
 const exerciseDetails = ref<ExerciseDetail[]>([])
@@ -153,25 +152,12 @@ const formattedDate = computed(() => {
 
 onMounted(async () => {
   await loadWorkout(Number(route.params.id))
-  await loadSets()
+  // loadWorkout already fetched every set in one embedded query.
+  exerciseDetails.value = workoutExercises.value.map((we) => ({
+    workoutExercise: we,
+    sets: workoutExerciseSets.value.get(we.id) ?? [],
+  }))
 })
-
-async function loadSets() {
-  const details: ExerciseDetail[] = []
-  for (const we of workoutExercises.value) {
-    const { data: setsData, error: setsErr } = await supabase
-      .from('exercise_sets')
-      .select('*')
-      .eq('workout_exercise_id', we.id)
-      .order('set_number')
-    if (setsErr) {
-      error.value = setsErr.message
-      return
-    }
-    details.push({ workoutExercise: we, sets: (setsData ?? []) as ExerciseSet[] })
-  }
-  exerciseDetails.value = details
-}
 
 async function handleDelete() {
   if (!workout.value) return

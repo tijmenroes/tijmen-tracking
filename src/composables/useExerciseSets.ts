@@ -87,8 +87,8 @@ export function useExerciseSets() {
   }
 
   /** Replace current sets with a copy of the previous session's sets. */
-  async function applyPreviousSets(workoutExerciseId: number) {
-    if (!previousSets.value.length) return
+  async function applyPreviousSets(workoutExerciseId: number, source: ExerciseSet[] = previousSets.value) {
+    if (!source.length) return
 
     const currentIds = sets.value.map((s) => s.id)
     for (const id of currentIds) {
@@ -97,7 +97,7 @@ export function useExerciseSets() {
     }
     sets.value = []
 
-    for (const prev of previousSets.value) {
+    for (const prev of source) {
       const { data, error: err } = await supabase
         .from('exercise_sets')
         .insert({
