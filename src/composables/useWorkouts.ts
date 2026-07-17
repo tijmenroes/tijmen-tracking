@@ -93,12 +93,8 @@ export function useWorkouts() {
     }
     workout.value = created
     workoutExercises.value = []
-    activeWorkout.value = {
-      ...(created as Workout),
-      exercise_count: 0,
-    }
-    activeWorkoutLoaded.value = true
 
+    let exerciseCount = 0
     if (opts.templateId) {
       const { data: templateRows, error: teErr } = await supabase
         .from('template_exercises')
@@ -116,13 +112,16 @@ export function useWorkouts() {
           })),
         )
         if (copyErr) { error.value = copyErr.message; return null }
-        await fetchWorkoutExercises()
-        activeWorkout.value = {
-          ...(created as Workout),
-          exercise_count: templateRows.length,
-        }
+        exerciseCount = templateRows.length
       }
     }
+
+    // Set the active workout only once everything is in place. Setting it earlier
+    // makes a still-mounted dashboard flash the "workout in progress" card before
+    // the caller can navigate to the session. The session refetches its own
+    // exercises, so there's no need to populate workoutExercises here.
+    activeWorkout.value = { ...(created as Workout), exercise_count: exerciseCount }
+    activeWorkoutLoaded.value = true
 
     return created as Workout
   }

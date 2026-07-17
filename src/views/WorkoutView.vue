@@ -10,7 +10,7 @@
 
     <div class="wdash__content">
       <!-- Active (unsaved) workout -->
-      <div v-if="activeWorkout" class="wdash__active">
+      <div v-if="activeWorkout && !starting" class="wdash__active">
         <div class="wdash__active-head">
           <span class="wdash__active-badge">Actief</span>
           <span class="wdash__active-title">
@@ -181,8 +181,10 @@ async function handleStart() {
   if (activeWorkout.value) return
   starting.value = true
   const workout = await startWorkout()
-  starting.value = false
+  // Keep `starting` true on success so the dashboard doesn't flash the active-
+  // workout card between resolving and navigating; only reset it on failure.
   if (workout) router.push(`/workout/session/${workout.id}`)
+  else starting.value = false
 }
 
 async function handleStartFromTemplate(templateId: number) {
@@ -192,8 +194,8 @@ async function handleStartFromTemplate(templateId: number) {
   }
   starting.value = true
   const workout = await startWorkout({ templateId })
-  starting.value = false
   if (workout) router.push(`/workout/session/${workout.id}`)
+  else starting.value = false
 }
 
 async function handleCreateTemplate() {

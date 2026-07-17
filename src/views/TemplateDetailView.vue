@@ -131,8 +131,9 @@ async function loadProgress() {
 async function handleStart() {
   starting.value = true
   const workout = await startWorkout({ templateId: templateId.value })
-  starting.value = false
+  // Keep the button in its "busy" state until we navigate; only reset on failure.
   if (workout) router.push(`/workout/session/${workout.id}`)
+  else starting.value = false
 }
 
 async function handleDelete() {
