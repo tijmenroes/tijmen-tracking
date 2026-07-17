@@ -160,6 +160,7 @@ const options = computed<ApexOptions>(() => ({
     min: yScale.value.min,
     max: yScale.value.max,
     tickAmount: yScale.value.tickAmount,
+    decimalsInFloat: 0,
     axisBorder: { show: false },
     axisTicks: { show: false },
     labels: {
