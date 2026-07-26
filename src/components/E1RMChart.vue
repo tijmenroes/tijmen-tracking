@@ -29,7 +29,12 @@ const props = defineProps<{
 }>()
 
 // Resolve theme colors once so ApexCharts follows our design tokens.
-const colors = ref({ primary: '#7C3AED', trend: 'rgba(14,11,26,0.36)', label: 'rgba(14,11,26,0.36)' })
+const colors = ref({
+  primary: '#7C3AED',
+  trend: 'rgba(14,11,26,0.36)',
+  label: 'rgba(14,11,26,0.36)',
+  cardBg: '#FFFFFF',
+})
 onMounted(() => {
   const cs = getComputedStyle(document.documentElement)
   const read = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback
@@ -37,6 +42,7 @@ onMounted(() => {
     primary: read('--color-primary', '#7C3AED'),
     trend: read('--color-text-3', 'rgba(14,11,26,0.36)'),
     label: read('--color-text-3', 'rgba(14,11,26,0.36)'),
+    cardBg: read('--color-card', '#FFFFFF'),
   }
 })
 
@@ -106,7 +112,13 @@ const options = computed<ApexOptions>(() => ({
     gradient: { shadeIntensity: 1, opacityFrom: 0.32, opacityTo: 0, stops: [0, 100] },
     opacity: [1, 0],
   },
-  markers: { size: 0, hover: { size: 4 } },
+  markers: {
+    size: [3, 0],
+    colors: [colors.value.primary],
+    strokeColors: colors.value.cardBg,
+    strokeWidth: 2,
+    hover: { size: 5 },
+  },
   grid: {
     show: false,
     padding: { top: 0, right: 6, bottom: 0, left: 6 },
