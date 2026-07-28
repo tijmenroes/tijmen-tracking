@@ -124,4 +124,46 @@ describe('useExerciseSets.fetchPreviousSets', () => {
     expect(sets.value[0]?.reps).toBe(10)
     expect(sets.value[1]?.reps).toBe(8)
   })
+
+  it('updateSet applies the edit to local state immediately, before the network round trip resolves', async () => {
+    let resolveUpdate!: (v: { data: unknown; error: null }) => void
+    const updatePromise = new Promise<{ data: unknown; error: null }>((resolve) => {
+      resolveUpdate = resolve
+    })
+    const mockUpdateSingle = vi.fn(() => updatePromise)
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'exercise_sets') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({ order: mockSetsEqOrder })),
+          })),
+          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ single: mockUpdateSingle })) })) })),
+        } as never
+      }
+      return {} as never
+    })
+
+    mockSetsEqOrder.mockResolvedValue({
+      data: [{ id: 1, workout_exercise_id: 99, set_number: 1, weight_kg: 20, reps: 8, duration_seconds: null, distance_km: null, created_at: 'x' }],
+      error: null,
+    })
+
+    const { sets, fetchSets, updateSet } = useExerciseSets()
+    await fetchSets(99)
+
+    const update = updateSet(1, { weight_kg: 25 })
+
+    // Reflected synchronously — this is what lets handleAddSet's prefill
+    // read the just-typed value even if the user clicks "add set" right away.
+    expect(sets.value[0]?.weight_kg).toBe(25)
+
+    resolveUpdate({
+      data: { id: 1, workout_exercise_id: 99, set_number: 1, weight_kg: 25, reps: 8, duration_seconds: null, distance_km: null, created_at: 'x' },
+      error: null,
+    })
+    await update
+
+    expect(sets.value[0]?.weight_kg).toBe(25)
+  })
 })

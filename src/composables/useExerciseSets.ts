@@ -67,14 +67,23 @@ export function useExerciseSets() {
   }
 
   async function updateSet(id: number, payload: Partial<Pick<ExerciseSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'distance_km'>>) {
+    const idx = sets.value.findIndex(s => s.id === id)
+    // Apply optimistically so local state (e.g. the prefill in handleAddSet)
+    // reflects the edit immediately, rather than only after the round trip.
+    const previous = idx !== -1 ? sets.value[idx] : undefined
+    if (idx !== -1 && previous) sets.value[idx] = { ...previous, ...payload }
+
     const { data, error: err } = await supabase
       .from('exercise_sets')
       .update(payload)
       .eq('id', id)
       .select()
       .single()
-    if (err) { error.value = err.message; return }
-    const idx = sets.value.findIndex(s => s.id === id)
+    if (err) {
+      error.value = err.message
+      if (idx !== -1 && previous) sets.value[idx] = previous
+      return
+    }
     if (idx !== -1) sets.value[idx] = data as ExerciseSet
   }
 
