@@ -49,25 +49,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
         runtimeCaching: [
           {
-            // Never cache auth/token traffic.
-            urlPattern: /^https:\/\/[^/]+\.supabase\.co\/auth\/.*/i,
-            handler: 'NetworkOnly',
-          },
-          {
-            // Read queries: serve the cached response instantly and refresh it in
-            // the background (stale-while-revalidate). GET only — mutations fall
-            // through to the NetworkOnly rule below.
-            urlPattern: /^https:\/\/[^/]+\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            method: 'GET',
-            options: {
-              cacheName: 'supabase-rest',
-              cacheableResponse: { statuses: [200] },
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
-            },
-          },
-          {
-            // Everything else on Supabase (mutations, storage, ...) hits the network.
+            // No caching of Supabase data at all. Read queries used to be served
+            // stale-while-revalidate, which meant a screen could show yesterday's
+            // data right after logging something. The app shell is still
+            // precached, and the queries themselves are fast enough.
             urlPattern: /^https:\/\/[^/]+\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',
           },

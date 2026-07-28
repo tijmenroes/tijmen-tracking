@@ -11,6 +11,21 @@ if (import.meta.env.PROD) {
       pwaNeedRefresh.value = true
     },
   })
+  void dropStaleSupabaseCache()
+}
+
+/**
+ * Older builds cached Supabase read queries stale-while-revalidate, which could
+ * surface yesterday's data right after logging something. That runtime cache is
+ * no longer written to, but it survives a service worker update — so drop it.
+ */
+async function dropStaleSupabaseCache() {
+  if (!('caches' in globalThis)) return
+  try {
+    await caches.delete('supabase-rest')
+  } catch {
+    // Storage may be unavailable (private mode, quota) — nothing to recover from.
+  }
 }
 
 export function refreshPwa() {
