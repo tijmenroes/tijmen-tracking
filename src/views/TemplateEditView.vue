@@ -23,8 +23,8 @@
           :key="te.id"
           class="tedit__item"
           :class="{
-            'tedit__item--dragging': dragFromIndex === idx,
-            'tedit__item--over': dragOverIndex === idx && dragFromIndex !== null && dragFromIndex !== idx,
+            'tedit__item--dragging': drag.isDragging(idx),
+            'tedit__item--over': drag.isOver(idx),
           }"
         >
           <div class="tedit__item-row">
@@ -32,10 +32,10 @@
               type="button"
               class="tedit__drag"
               aria-label="Verslepen om volgorde te wijzigen"
-              @pointerdown="onDragHandlePointerDown($event, idx)"
-              @pointermove="onDragHandlePointerMove"
-              @pointerup="onDragHandlePointerUp"
-              @pointercancel="onDragHandlePointerUp"
+              @pointerdown="drag.onPointerDown($event, idx)"
+              @pointermove="drag.onPointerMove"
+              @pointerup="drag.onPointerUp"
+              @pointercancel="drag.onPointerUp"
             >
               ⠿
             </button>
@@ -85,6 +85,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import ExercisePicker from '@/components/ExercisePicker.vue'
 import BaseModal from '@/components/BaseModal.vue'
+import { useDragSort } from '@/composables/useDragSort'
 import { useTemplatesStore } from '@/stores/templates'
 import { useExercisesStore } from '@/stores/exercises'
 import { useTagsStore } from '@/stores/tags'
@@ -115,8 +116,11 @@ const showPicker = ref(false)
 const showRename = ref(false)
 const renameName = ref('')
 const listRef = ref<HTMLElement | null>(null)
-const dragFromIndex = ref<number | null>(null)
-const dragOverIndex = ref<number | null>(null)
+const drag = useDragSort({
+  container: listRef,
+  itemSelector: '.tedit__item',
+  onDrop: reorderTemplateExercises,
+})
 
 onMounted(async () => {
   await loadTemplate(templateId.value)
@@ -150,39 +154,6 @@ async function handleNoteChange(templateExerciseId: number, event: Event) {
   await updateTemplateExerciseNote(templateExerciseId, value)
 }
 
-function dropIndexFromY(clientY: number): number {
-  const items = listRef.value?.querySelectorAll('.tedit__item')
-  if (!items?.length) return 0
-  for (let i = 0; i < items.length; i++) {
-    const rect = items[i]!.getBoundingClientRect()
-    if (clientY < rect.top + rect.height / 2) return i
-  }
-  return items.length - 1
-}
-
-function onDragHandlePointerDown(event: PointerEvent, index: number) {
-  if (event.pointerType === 'mouse' && event.button !== 0) return
-  dragFromIndex.value = index
-  dragOverIndex.value = index
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-}
-
-function onDragHandlePointerMove(event: PointerEvent) {
-  if (dragFromIndex.value === null) return
-  dragOverIndex.value = dropIndexFromY(event.clientY)
-}
-
-async function onDragHandlePointerUp(event: PointerEvent) {
-  if (dragFromIndex.value === null) return
-  const from = dragFromIndex.value
-  const to = dragOverIndex.value ?? from
-  dragFromIndex.value = null
-  dragOverIndex.value = null
-  ;(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)
-  if (from !== to) {
-    await reorderTemplateExercises(from, to)
-  }
-}
 </script>
 
 <style scoped>

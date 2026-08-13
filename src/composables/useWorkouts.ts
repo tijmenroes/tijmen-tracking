@@ -458,6 +458,33 @@ export function useWorkouts() {
     workoutExercises.value = workoutExercises.value.filter(we => we.id !== workoutExerciseId)
   }
 
+  /**
+   * Move an exercise within this session. Only workout_exercises rows are
+   * touched, so a session started from a template never changes the template.
+   */
+  async function reorderWorkoutExercises(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return
+    const items = [...workoutExercises.value]
+    const [moved] = items.splice(fromIndex, 1)
+    if (!moved) return
+    items.splice(toIndex, 0, moved)
+
+    const previous = workoutExercises.value
+    workoutExercises.value = items.map((we, i) => ({ ...we, sort_order: i }))
+
+    const results = await Promise.all(
+      workoutExercises.value.map((we, i) =>
+        supabase.from('workout_exercises').update({ sort_order: i }).eq('id', we.id).select('id'),
+      ),
+    )
+    const err = results.find((r) => r.error)?.error
+    const missing = results.some((r) => !r.error && !r.data?.length)
+    if (err || missing) {
+      error.value = err?.message ?? 'Volgorde opslaan mislukt'
+      workoutExercises.value = previous
+    }
+  }
+
   async function updateWorkoutExercise(id: number, payload: { notes?: string | null; pain_scale?: number | null }) {
     const { error: err } = await supabase
       .from('workout_exercises')
@@ -494,6 +521,7 @@ export function useWorkouts() {
     updateWorkout,
     addExerciseToWorkout,
     removeExerciseFromWorkout,
+    reorderWorkoutExercises,
     updateWorkoutExercise,
     fetchWorkoutExercises,
   }

@@ -3,6 +3,19 @@
     <div class="we-card__header">
       <div class="we-card__title-block">
         <div class="we-card__title-row">
+          <button
+            class="we-card__sort"
+            type="button"
+            title="Houd vast om de volgorde te wijzigen"
+            aria-label="Volgorde wijzigen"
+            @pointerdown="onSortPointerDown"
+            @pointermove="onSortPointerMove"
+            @pointerup="onSortPointerUp"
+            @pointercancel="cancelLongPress"
+            @click="onSortClick"
+          >
+            ⠿
+          </button>
           <button class="we-card__name" @click="$emit('detail', workoutExercise)">
             {{ workoutExercise.exercise?.name }}
           </button>
@@ -161,6 +174,7 @@ const emit = defineEmits<{
   (e: 'remove', id: number): void
   (e: 'detail', we: WorkoutExercise): void
   (e: 'logged-sets-change', hasLogged: boolean): void
+  (e: 'reorder'): void
 }>()
 
 const { sets, addSet, updateSet: updateSetData, deleteSet, applyPreviousSets } = useExerciseSets()
@@ -248,6 +262,55 @@ function confirmRemove() {
   emit('remove', props.workoutExercise.id)
 }
 
+// Press-and-hold the sort handle to switch the session into reorder mode. A
+// plain tap does the same, so a too-short hold isn't a dead end.
+const LONG_PRESS_MS = 320
+const LONG_PRESS_SLOP = 8
+let longPressTimer: number | null = null
+let longPressFired = false
+let pressOrigin = { x: 0, y: 0 }
+
+function cancelLongPress() {
+  if (longPressTimer !== null) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+function onSortPointerDown(event: PointerEvent) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  longPressFired = false
+  pressOrigin = { x: event.clientX, y: event.clientY }
+  longPressTimer = window.setTimeout(() => {
+    longPressTimer = null
+    longPressFired = true
+    emit('reorder')
+  }, LONG_PRESS_MS)
+}
+
+function onSortPointerMove(event: PointerEvent) {
+  if (longPressTimer === null) return
+  // Treat a moving finger as a scroll, not a hold.
+  if (
+    Math.abs(event.clientX - pressOrigin.x) > LONG_PRESS_SLOP ||
+    Math.abs(event.clientY - pressOrigin.y) > LONG_PRESS_SLOP
+  ) {
+    cancelLongPress()
+  }
+}
+
+function onSortPointerUp() {
+  cancelLongPress()
+}
+
+function onSortClick() {
+  if (longPressFired) {
+    longPressFired = false
+    return
+  }
+  emit('reorder')
+}
+
 const DECIMAL_FIELDS = new Set(['weight_kg', 'distance_km'])
 
 function parseSetValue(raw: string, field: string): number | null {
@@ -311,6 +374,24 @@ async function saveExtra() {
   font-size: 13px;
   color: var(--color-text-2);
   margin: 3px 0 0;
+}
+
+.we-card__sort {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-left: -3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .we-card__name {

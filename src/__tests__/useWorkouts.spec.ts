@@ -14,6 +14,7 @@ const mockWorkoutPageRange = vi.fn()
 const mockWorkoutTemplateOrder = vi.fn()
 const mockWeOrder = vi.fn()
 const mockWeInsert = vi.fn()
+const mockWeUpdateSelect = vi.fn()
 const mockTeOrder = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
@@ -44,6 +45,7 @@ vi.mock('@/lib/supabase', () => ({
         return {
           select: vi.fn(() => ({ eq: vi.fn(() => ({ order: mockWeOrder })) })),
           insert: mockWeInsert,
+          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: mockWeUpdateSelect })) })),
         }
       }
       if (table === 'template_exercises') {
@@ -186,6 +188,39 @@ describe('useWorkouts', () => {
 
     expect(templateWorkouts.value).toHaveLength(1)
     expect(templateWorkouts.value[0]?.exercise_count).toBe(4)
+  })
+
+  it('reorderWorkoutExercises persists sort_order without touching the template', async () => {
+    mockWeUpdateSelect.mockResolvedValue({ data: [{ id: 1 }], error: null })
+
+    const { workoutExercises, reorderWorkoutExercises } = useWorkouts()
+    workoutExercises.value = [
+      { id: 1, workout_id: 5, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x' },
+      { id: 2, workout_id: 5, exercise_id: 5, sort_order: 1, notes: null, pain_scale: null, created_at: 'x' },
+      { id: 3, workout_id: 5, exercise_id: 7, sort_order: 2, notes: null, pain_scale: null, created_at: 'x' },
+    ]
+
+    await reorderWorkoutExercises(0, 2)
+
+    expect(workoutExercises.value.map((we) => we.id)).toEqual([2, 3, 1])
+    expect(workoutExercises.value.map((we) => we.sort_order)).toEqual([0, 1, 2])
+    expect(mockWeUpdateSelect).toHaveBeenCalledTimes(3)
+    expect(mockTeOrder).not.toHaveBeenCalled()
+  })
+
+  it('reorderWorkoutExercises rolls back when saving fails', async () => {
+    mockWeUpdateSelect.mockResolvedValue({ data: null, error: { message: 'nope' } })
+
+    const { workoutExercises, error: err, reorderWorkoutExercises } = useWorkouts()
+    workoutExercises.value = [
+      { id: 1, workout_id: 5, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x' },
+      { id: 2, workout_id: 5, exercise_id: 5, sort_order: 1, notes: null, pain_scale: null, created_at: 'x' },
+    ]
+
+    await reorderWorkoutExercises(0, 1)
+
+    expect(workoutExercises.value.map((we) => we.id)).toEqual([1, 2])
+    expect(err.value).toBe('nope')
   })
 
   it('deleteWorkout clears the active workout when it is the one deleted', async () => {

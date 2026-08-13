@@ -26,7 +26,8 @@
         Geen oefeningen nog. Voeg er een toe!
       </div>
 
-      <div class="workout__exercises">
+      <!-- Reorder mode: cards stay mounted (v-show) so nothing in them resets. -->
+      <div v-show="!reordering" class="workout__exercises">
         <WorkoutExerciseCard
           v-for="we in visibleExercises"
           :key="we.id"
@@ -38,14 +39,49 @@
           @remove="handleRemoveExercise"
           @logged-sets-change="(hasLogged) => onLoggedSetsChange(we.id, hasLogged)"
           @detail="router.push(`/exercises/${we.exercise_id}/detail`)"
+          @reorder="startReordering"
         />
       </div>
 
-      <button class="workout__add-btn" @click="showPicker = true">
+      <div v-if="reordering" class="workout__reorder">
+        <div class="workout__reorder-bar">
+          <span class="workout__reorder-hint">Sleep om de volgorde te wijzigen</span>
+          <button class="workout__reorder-done" type="button" @click="reordering = false">
+            <span class="workout__reorder-check" aria-hidden="true">✓</span>
+            Klaar
+          </button>
+        </div>
+        <ul ref="reorderListRef" class="workout__reorder-list card">
+          <li
+            v-for="(we, idx) in workoutExercises"
+            :key="we.id"
+            class="workout__reorder-item"
+            :class="{
+              'workout__reorder-item--dragging': drag.isDragging(idx),
+              'workout__reorder-item--over': drag.isOver(idx),
+            }"
+          >
+            <button
+              type="button"
+              class="workout__reorder-handle"
+              aria-label="Verslepen om volgorde te wijzigen"
+              @pointerdown="drag.onPointerDown($event, idx)"
+              @pointermove="drag.onPointerMove"
+              @pointerup="drag.onPointerUp"
+              @pointercancel="drag.onPointerUp"
+            >
+              ⠿
+            </button>
+            <span class="workout__reorder-name">{{ we.exercise?.name ?? 'Oefening' }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <button v-if="!reordering" class="workout__add-btn" @click="showPicker = true">
         + Oefening toevoegen
       </button>
 
-      <div v-if="workout" class="workout__footer">
+      <div v-if="workout && !reordering" class="workout__footer">
         <p class="workout__save-hint">
           Lege sets worden bij het opslaan automatisch verwijderd.
         </p>
@@ -103,6 +139,7 @@ import ExercisePicker from '@/components/ExercisePicker.vue'
 import WorkoutEditModal from '@/components/WorkoutEditModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useWorkouts } from '@/composables/useWorkouts'
+import { useDragSort } from '@/composables/useDragSort'
 import { useTemplatesStore } from '@/stores/templates'
 import { useExercisesStore } from '@/stores/exercises'
 import { useTagsStore } from '@/stores/tags'
@@ -110,7 +147,7 @@ import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
 const route = useRoute()
-const { workout, workoutExercises, workoutExerciseSets, previousSetsByExercise, fetchPreviousSetsForExercises, templateNotes, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
+const { workout, workoutExercises, workoutExerciseSets, previousSetsByExercise, fetchPreviousSetsForExercises, templateNotes, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, reorderWorkoutExercises, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
 const exercisesStore = useExercisesStore()
 const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
 const { fetchExercises } = exercisesStore
@@ -138,6 +175,21 @@ function revealRemainingCards() {
     visibleCount.value += CARD_BATCH
     revealRemainingCards()
   })
+}
+
+const reordering = ref(false)
+const reorderListRef = ref<HTMLElement | null>(null)
+const drag = useDragSort({
+  container: reorderListRef,
+  itemSelector: '.workout__reorder-item',
+  onDrop: reorderWorkoutExercises,
+})
+
+function startReordering() {
+  // The collapsed list shows every exercise, so drop the progressive reveal too;
+  // otherwise cards below the batch stay hidden after leaving reorder mode.
+  visibleCount.value = workoutExercises.value.length
+  reordering.value = true
 }
 
 const canSaveWorkout = computed(() =>
@@ -312,6 +364,103 @@ async function handleSaveWorkout(payload: { name: string | null; date: string; s
   flex-direction: column;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.workout__reorder {
+  margin-bottom: 16px;
+}
+
+.workout__reorder-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 12px;
+}
+
+.workout__reorder-hint {
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.workout__reorder-done {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 18px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 20px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.workout__reorder-check {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.workout__reorder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workout__reorder-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.workout__reorder-item:last-child {
+  border-bottom: none;
+}
+
+.workout__reorder-item--dragging {
+  opacity: 0.55;
+}
+
+.workout__reorder-item--over {
+  box-shadow: inset 0 2px 0 var(--color-primary);
+}
+
+.workout__reorder-handle {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.workout__reorder-handle:active {
+  cursor: grabbing;
+}
+
+.workout__reorder-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workout__add-btn {
