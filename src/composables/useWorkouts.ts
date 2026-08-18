@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useExercisesStore } from '@/stores/exercises'
 import { publishWorkoutCompletion } from '@/services/activityPublisher'
+import { mapSessionRefRows, type ExerciseSessionRefRow } from '@/utils/sessionRefs'
 import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
 const activeWorkout = ref<WorkoutSummary | null>(null)
@@ -22,8 +23,10 @@ export function useWorkouts() {
   const workoutExercises = ref<WorkoutExercise[]>([])
   /** Current sets per workout_exercise id, loaded together with the exercises. */
   const workoutExerciseSets = ref<Map<number, ExerciseSet[]>>(new Map())
-  /** Previous-session sets per exercise id (loaded separately, in the background). */
+  /** Last 1–2 sets of the previous session per exercise id (prefill). */
   const previousSetsByExercise = ref<Map<number, ExerciseSet[]>>(new Map())
+  /** All-time heaviest set per exercise id (display only). */
+  const bestSetByExercise = ref<Map<number, ExerciseSet>>(new Map())
   /** Per-exercise guidance notes from the template this workout was started from. */
   const templateNotes = ref<Map<number, string>>(new Map())
   const recentWorkouts = ref<WorkoutSummary[]>([])
@@ -49,12 +52,11 @@ export function useWorkouts() {
   }
 
   /** A set counts as "empty" when none of its metric fields were filled in. */
-  function isEmptySet(s: Pick<ExerciseSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'distance_km'>): boolean {
+  function isEmptySet(
+    s: Pick<ExerciseSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'distance_km'>,
+  ): boolean {
     return (
-      s.weight_kg == null &&
-      s.reps == null &&
-      s.duration_seconds == null &&
-      s.distance_km == null
+      s.weight_kg == null && s.reps == null && s.duration_seconds == null && s.distance_km == null
     )
   }
 
@@ -67,10 +69,15 @@ export function useWorkouts() {
    * Start a new workout session for today and set it as the active workout.
    * Multiple sessions per day are allowed (see migration_004).
    */
-  async function startWorkout(opts: { name?: string; templateId?: number } = {}): Promise<Workout | null> {
+  async function startWorkout(
+    opts: { name?: string; templateId?: number } = {},
+  ): Promise<Workout | null> {
     error.value = null
     const userId = authStore.user?.id
-    if (!userId) { error.value = 'Not authenticated'; return null }
+    if (!userId) {
+      error.value = 'Not authenticated'
+      return null
+    }
 
     const insertPayload: {
       user_id: string
@@ -91,9 +98,10 @@ export function useWorkouts() {
       .single()
     if (err) {
       // Unique index one_active_workout_per_user → a draft is still open.
-      error.value = err.code === '23505'
-        ? 'Je hebt nog een actieve workout. Sla die eerst op of verwijder hem.'
-        : err.message
+      error.value =
+        err.code === '23505'
+          ? 'Je hebt nog een actieve workout. Sla die eerst op of verwijder hem.'
+          : err.message
       return null
     }
     workout.value = created
@@ -106,7 +114,10 @@ export function useWorkouts() {
         .select('exercise_id, sort_order')
         .eq('template_id', opts.templateId)
         .order('sort_order')
-      if (teErr) { error.value = teErr.message; return null }
+      if (teErr) {
+        error.value = teErr.message
+        return null
+      }
 
       if (templateRows?.length) {
         const { error: copyErr } = await supabase.from('workout_exercises').insert(
@@ -116,7 +127,10 @@ export function useWorkouts() {
             sort_order: te.sort_order,
           })),
         )
-        if (copyErr) { error.value = copyErr.message; return null }
+        if (copyErr) {
+          error.value = copyErr.message
+          return null
+        }
         exerciseCount = templateRows.length
       }
     }
@@ -135,12 +149,12 @@ export function useWorkouts() {
   async function loadWorkout(id: number) {
     loading.value = true
     error.value = null
-    const { data, error: err } = await supabase
-      .from('workouts')
-      .select('*')
-      .eq('id', id)
-      .single()
-    if (err) { error.value = err.message; loading.value = false; return }
+    const { data, error: err } = await supabase.from('workouts').select('*').eq('id', id).single()
+    if (err) {
+      error.value = err.message
+      loading.value = false
+      return
+    }
     workout.value = data
     await fetchWorkoutExercises()
     await fetchTemplateNotes(data.template_id)
@@ -153,12 +167,18 @@ export function useWorkouts() {
    * template (e.g. an ad-hoc workout or a since-deleted template).
    */
   async function fetchTemplateNotes(templateId: number | null) {
-    if (!templateId) { templateNotes.value = new Map(); return }
+    if (!templateId) {
+      templateNotes.value = new Map()
+      return
+    }
     const { data, error: err } = await supabase
       .from('template_exercises')
       .select('exercise_id, note')
       .eq('template_id', templateId)
-    if (err) { templateNotes.value = new Map(); return }
+    if (err) {
+      templateNotes.value = new Map()
+      return
+    }
     const map = new Map<number, string>()
     for (const row of data ?? []) {
       if (typeof row.note === 'string' && row.note.trim()) map.set(row.exercise_id, row.note)
@@ -171,7 +191,10 @@ export function useWorkouts() {
     loading.value = true
     error.value = null
     const userId = authStore.user?.id
-    if (!userId) { loading.value = false; return }
+    if (!userId) {
+      loading.value = false
+      return
+    }
 
     // !inner → only workouts that have at least one exercise
     const { data, error: err } = await supabase
@@ -182,7 +205,10 @@ export function useWorkouts() {
       .order('created_at', { ascending: false })
       .limit(limit)
     loading.value = false
-    if (err) { error.value = err.message; return }
+    if (err) {
+      error.value = err.message
+      return
+    }
     recentWorkouts.value = toSummaries((data ?? []) as SummaryRow[])
   }
 
@@ -191,17 +217,29 @@ export function useWorkouts() {
     loading.value = true
     error.value = null
     const userId = authStore.user?.id
-    if (!userId) { loading.value = false; return }
+    if (!userId) {
+      loading.value = false
+      return
+    }
 
-    const { data, count, error: err } = await supabase
+    const {
+      data,
+      count,
+      error: err,
+    } = await supabase
       .from('workouts')
-      .select('*, workout_exercises!inner(count), template:workout_templates(name)', { count: 'exact' })
+      .select('*, workout_exercises!inner(count), template:workout_templates(name)', {
+        count: 'exact',
+      })
       .eq('user_id', userId)
       .eq('status', 'saved')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
     loading.value = false
-    if (err) { error.value = err.message; return }
+    if (err) {
+      error.value = err.message
+      return
+    }
     workoutsPage.value = toSummaries((data ?? []) as SummaryRow[])
     totalWorkouts.value = count ?? 0
   }
@@ -211,7 +249,10 @@ export function useWorkouts() {
     loading.value = true
     error.value = null
     const userId = authStore.user?.id
-    if (!userId) { loading.value = false; return }
+    if (!userId) {
+      loading.value = false
+      return
+    }
 
     const { data, error: err } = await supabase
       .from('workouts')
@@ -221,7 +262,10 @@ export function useWorkouts() {
       .eq('status', 'saved')
       .order('created_at', { ascending: false })
     loading.value = false
-    if (err) { error.value = err.message; return }
+    if (err) {
+      error.value = err.message
+      return
+    }
     templateWorkouts.value = toSummaries((data ?? []) as SummaryRow[])
   }
 
@@ -246,7 +290,10 @@ export function useWorkouts() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      if (err) { error.value = err.message; return null }
+      if (err) {
+        error.value = err.message
+        return null
+      }
       if (!data) {
         activeWorkout.value = null
         activeWorkoutLoaded.value = true
@@ -280,17 +327,20 @@ export function useWorkouts() {
       .from('workout_exercises')
       .select('id, notes, pain_scale, exercise_sets(*)')
       .eq('workout_id', id)
-    if (weErr) { error.value = weErr.message; return null }
+    if (weErr) {
+      error.value = weErr.message
+      return null
+    }
 
     for (const we of wes ?? []) {
       const setsList = (we.exercise_sets ?? []) as ExerciseSet[]
       const emptyIds = setsList.filter(isEmptySet).map((s) => s.id)
       if (emptyIds.length) {
-        const { error: delErr } = await supabase
-          .from('exercise_sets')
-          .delete()
-          .in('id', emptyIds)
-        if (delErr) { error.value = delErr.message; return null }
+        const { error: delErr } = await supabase.from('exercise_sets').delete().in('id', emptyIds)
+        if (delErr) {
+          error.value = delErr.message
+          return null
+        }
       }
 
       const remainingSets = setsList.length - emptyIds.length
@@ -301,7 +351,10 @@ export function useWorkouts() {
           .from('workout_exercises')
           .delete()
           .eq('id', we.id)
-        if (weDelErr) { error.value = weDelErr.message; return null }
+        if (weDelErr) {
+          error.value = weDelErr.message
+          return null
+        }
       }
     }
 
@@ -309,12 +362,21 @@ export function useWorkouts() {
       .from('workout_exercises')
       .select('id', { count: 'exact', head: true })
       .eq('workout_id', id)
-    if (cntErr) { error.value = cntErr.message; return null }
+    if (cntErr) {
+      error.value = cntErr.message
+      return null
+    }
 
     if (!count) {
       const { error: delWErr } = await supabase.from('workouts').delete().eq('id', id)
-      if (delWErr) { error.value = delWErr.message; return null }
-      if (workout.value?.id === id) { workout.value = null; workoutExercises.value = [] }
+      if (delWErr) {
+        error.value = delWErr.message
+        return null
+      }
+      if (workout.value?.id === id) {
+        workout.value = null
+        workoutExercises.value = []
+      }
       if (activeWorkout.value?.id === id) activeWorkout.value = null
       return { deleted: true }
     }
@@ -325,7 +387,10 @@ export function useWorkouts() {
       .eq('id', id)
       .select()
       .single()
-    if (updErr) { error.value = updErr.message; return null }
+    if (updErr) {
+      error.value = updErr.message
+      return null
+    }
     if (workout.value?.id === id) workout.value = data as Workout
     if (activeWorkout.value?.id === id) activeWorkout.value = null
     if (shouldPublish) await publishWorkoutCompletion(id)
@@ -334,7 +399,10 @@ export function useWorkouts() {
 
   async function deleteWorkout(id: number) {
     const { error: err } = await supabase.from('workouts').delete().eq('id', id)
-    if (err) { error.value = err.message; return }
+    if (err) {
+      error.value = err.message
+      return
+    }
     if (workout.value?.id === id) {
       workout.value = null
       workoutExercises.value = []
@@ -353,7 +421,10 @@ export function useWorkouts() {
       .eq('id', id)
       .select()
       .single()
-    if (err) { error.value = err.message; return null }
+    if (err) {
+      error.value = err.message
+      return null
+    }
     if (workout.value?.id === id) workout.value = data as Workout
     return data as Workout
   }
@@ -375,7 +446,10 @@ export function useWorkouts() {
       .select('*, exercise_sets(*)')
       .eq('workout_id', workout.value.id)
       .order('sort_order')
-    if (err) { error.value = err.message; return }
+    if (err) {
+      error.value = err.message
+      return
+    }
 
     const setsMap = new Map<number, ExerciseSet[]>()
     const rows = (data ?? []).map((row) => {
@@ -391,50 +465,30 @@ export function useWorkouts() {
   }
 
   /**
-   * Load the most recent previous-session sets for a batch of exercises in two
-   * queries (rather than two per exercise). Populates previousSetsByExercise.
-   * Excludes the current workout so same-day repeats don't reference themselves.
+   * Load all-time heaviest set + last 2 previous-session sets for a batch of
+   * exercises in one RPC. Excludes the current workout so same-day repeats
+   * don't reference themselves.
    */
   async function fetchPreviousSetsForExercises(exerciseIds: number[], currentWorkoutId: number) {
-    previousSetsByExercise.value = new Map()
     const ids = [...new Set(exerciseIds)]
-    if (!ids.length) return
-
-    const { data: weRows, error: weErr } = await supabase
-      .from('workout_exercises')
-      .select('id, exercise_id, created_at')
-      .in('exercise_id', ids)
-      .neq('workout_id', currentWorkoutId)
-      .order('created_at', { ascending: false })
-    if (weErr) { error.value = weErr.message; return }
-
-    // First row per exercise is the most recent (rows are newest-first).
-    const latestWeByExercise = new Map<number, number>()
-    for (const r of weRows ?? []) {
-      if (!latestWeByExercise.has(r.exercise_id)) latestWeByExercise.set(r.exercise_id, r.id)
-    }
-    const weIds = [...latestWeByExercise.values()]
-    if (!weIds.length) return
-
-    const { data: setsRows, error: setsErr } = await supabase
-      .from('exercise_sets')
-      .select('*')
-      .in('workout_exercise_id', weIds)
-      .order('set_number')
-    if (setsErr) { error.value = setsErr.message; return }
-
-    const setsByWe = new Map<number, ExerciseSet[]>()
-    for (const s of (setsRows ?? []) as ExerciseSet[]) {
-      const list = setsByWe.get(s.workout_exercise_id) ?? []
-      list.push(s)
-      setsByWe.set(s.workout_exercise_id, list)
+    if (!ids.length) {
+      previousSetsByExercise.value = new Map()
+      bestSetByExercise.value = new Map()
+      return
     }
 
-    const result = new Map<number, ExerciseSet[]>()
-    for (const [exId, weId] of latestWeByExercise) {
-      result.set(exId, setsByWe.get(weId) ?? [])
+    const { data, error: err } = await supabase.rpc('exercise_session_refs', {
+      p_exercise_ids: ids,
+      p_exclude_workout_id: currentWorkoutId,
+    })
+    if (err) {
+      error.value = err.message
+      return
     }
-    previousSetsByExercise.value = result
+
+    const mapped = mapSessionRefRows((data ?? []) as ExerciseSessionRefRow[])
+    bestSetByExercise.value = mapped.bestSetByExercise
+    previousSetsByExercise.value = mapped.previousSetsByExercise
   }
 
   async function addExerciseToWorkout(exerciseId: number) {
@@ -446,7 +500,10 @@ export function useWorkouts() {
       .insert({ workout_id: workout.value.id, exercise_id: exerciseId, sort_order: sortOrder })
       .select('*')
       .single()
-    if (err) { error.value = err.message; return null }
+    if (err) {
+      error.value = err.message
+      return null
+    }
     const row = attachExercise(data)
     workoutExercises.value.push(row)
     return row
@@ -457,8 +514,11 @@ export function useWorkouts() {
       .from('workout_exercises')
       .delete()
       .eq('id', workoutExerciseId)
-    if (err) { error.value = err.message; return }
-    workoutExercises.value = workoutExercises.value.filter(we => we.id !== workoutExerciseId)
+    if (err) {
+      error.value = err.message
+      return
+    }
+    workoutExercises.value = workoutExercises.value.filter((we) => we.id !== workoutExerciseId)
   }
 
   /**
@@ -488,13 +548,16 @@ export function useWorkouts() {
     }
   }
 
-  async function updateWorkoutExercise(id: number, payload: { notes?: string | null; pain_scale?: number | null }) {
-    const { error: err } = await supabase
-      .from('workout_exercises')
-      .update(payload)
-      .eq('id', id)
-    if (err) { error.value = err.message; return }
-    const we = workoutExercises.value.find(w => w.id === id)
+  async function updateWorkoutExercise(
+    id: number,
+    payload: { notes?: string | null; pain_scale?: number | null },
+  ) {
+    const { error: err } = await supabase.from('workout_exercises').update(payload).eq('id', id)
+    if (err) {
+      error.value = err.message
+      return
+    }
+    const we = workoutExercises.value.find((w) => w.id === id)
     if (we) Object.assign(we, payload)
   }
 
@@ -503,6 +566,7 @@ export function useWorkouts() {
     workoutExercises,
     workoutExerciseSets,
     previousSetsByExercise,
+    bestSetByExercise,
     fetchPreviousSetsForExercises,
     templateNotes,
     recentWorkouts,

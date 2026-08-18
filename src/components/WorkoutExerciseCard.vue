@@ -25,33 +25,20 @@
         </div>
         <p v-if="templateNote" class="we-card__subtitle">{{ templateNote }}</p>
       </div>
-      <button class="we-card__remove" title="Verwijder oefening" @click="handleRemoveClick">×</button>
+      <button class="we-card__remove" title="Verwijder oefening" @click="handleRemoveClick">
+        ×
+      </button>
     </div>
 
-    <!-- Previous session reference -->
-    <div v-if="previousSets.length > 0" class="we-card__prev">
+    <!-- All-time heaviest set (strength only) -->
+    <div v-if="bestSet && workoutExercise.exercise?.type === 'strength'" class="we-card__prev">
       <div class="we-card__prev-head">
-        <div class="we-card__prev-label">Vorige keer</div>
-        <button
-          class="we-card__prev-apply"
-          type="button"
-          title="Vul huidige sets in met vorige keer"
-          :disabled="applyingPrevious"
-          @click="handleApplyPrevious"
-        >
-          ↓
-        </button>
+        <div class="we-card__prev-label">Beste</div>
       </div>
-      <div v-for="s in previousSets" :key="s.id" class="we-card__prev-row">
-        <span class="we-card__set-num">{{ s.set_number }}</span>
-        <template v-if="workoutExercise.exercise?.type === 'strength'">
-          <span>{{ s.weight_kg ?? '—' }} kg</span>
-          <span>{{ s.reps ?? '—' }} reps</span>
-        </template>
-        <template v-else>
-          <span>{{ formatDuration(s.duration_seconds) }}</span>
-          <span v-if="s.distance_km != null">{{ s.distance_km }} km</span>
-        </template>
+      <div class="we-card__prev-row">
+        <span class="we-card__set-num">{{ bestSet.set_number }}</span>
+        <span>{{ bestSet.weight_kg ?? '—' }} kg</span>
+        <span>{{ bestSet.reps ?? '—' }} reps</span>
       </div>
     </div>
 
@@ -69,7 +56,7 @@
             placeholder="kg"
             :value="s.weight_kg ?? ''"
             @change="updateSet(s.id, 'weight_kg', $event)"
-          >
+          />
           <input
             class="we-card__input"
             type="number"
@@ -77,7 +64,7 @@
             placeholder="reps"
             :value="s.reps ?? ''"
             @change="updateSet(s.id, 'reps', $event)"
-          >
+          />
         </template>
 
         <template v-else>
@@ -88,7 +75,7 @@
             placeholder="seconden"
             :value="s.duration_seconds ?? ''"
             @change="updateSet(s.id, 'duration_seconds', $event)"
-          >
+          />
           <input
             class="we-card__input"
             type="text"
@@ -96,7 +83,7 @@
             placeholder="km"
             :value="s.distance_km ?? ''"
             @change="updateSet(s.id, 'distance_km', $event)"
-          >
+          />
         </template>
 
         <button class="we-card__del" @click="handleDeleteSet(s.id)">−</button>
@@ -108,7 +95,11 @@
     <!-- Extra data accordion -->
     <button class="we-card__accordion-toggle" @click="accordionOpen = !accordionOpen">
       <span>{{ accordionOpen ? 'Verberg extra' : 'Extra notities & pijn' }}</span>
-      <span class="we-card__accordion-indicator" :class="{ 'we-card__accordion-indicator--open': accordionOpen }">›</span>
+      <span
+        class="we-card__accordion-indicator"
+        :class="{ 'we-card__accordion-indicator--open': accordionOpen }"
+        >›</span
+      >
     </button>
 
     <div v-if="accordionOpen" class="we-card__accordion">
@@ -121,12 +112,16 @@
             class="we-card__pain-btn"
             :class="{ 'we-card__pain-btn--active': localPainScale === n }"
             @click="setPainScale(n)"
-          >{{ n }}</button>
+          >
+            {{ n }}
+          </button>
           <button
             v-if="localPainScale !== null"
             class="we-card__pain-clear"
             @click="setPainScale(null)"
-          >×</button>
+          >
+            ×
+          </button>
         </div>
       </div>
 
@@ -158,6 +153,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import type { WorkoutExercise, ExerciseSet } from '@/types/fitness'
 import { useExerciseSets } from '@/composables/useExerciseSets'
+import { shouldPrefillPreviousSets, takeLastSets, hasLoggedSetMetrics } from '@/utils/sessionRefs'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const props = defineProps<{
@@ -165,9 +161,14 @@ const props = defineProps<{
   templateNote?: string | null
   /** Current sets, loaded in bulk by the parent (no per-card fetch). */
   initialSets?: ExerciseSet[]
-  /** Previous-session sets for the "vorige keer" reference; may arrive after mount. */
+  /** Previous-session sets (max 2) used to prefill empty inputs. */
   previousSets?: ExerciseSet[]
-  onUpdateExtra: (id: number, payload: { notes?: string | null; pain_scale?: number | null }) => Promise<void>
+  /** All-time heaviest set for the "Beste" reference; may arrive after mount. */
+  bestSet?: ExerciseSet | null
+  onUpdateExtra: (
+    id: number,
+    payload: { notes?: string | null; pain_scale?: number | null },
+  ) => Promise<void>
 }>()
 
 const emit = defineEmits<{
@@ -180,9 +181,10 @@ const emit = defineEmits<{
 const { sets, addSet, updateSet: updateSetData, deleteSet, applyPreviousSets } = useExerciseSets()
 
 const previousSets = computed(() => props.previousSets ?? [])
+const bestSet = computed(() => props.bestSet ?? null)
 
 const accordionOpen = ref(false)
-const applyingPrevious = ref(false)
+const didPrefill = ref(false)
 const showRemoveConfirm = ref(false)
 const localNotes = ref<string>(props.workoutExercise.notes ?? '')
 const localPainScale = ref<number | null>(props.workoutExercise.pain_scale ?? null)
@@ -190,17 +192,25 @@ const localPainScale = ref<number | null>(props.workoutExercise.pain_scale ?? nu
 onMounted(async () => {
   // Sets are provided by the parent in one bulk fetch; seed local state from them.
   sets.value = [...(props.initialSets ?? [])]
-  if (sets.value.length === 0) {
+  if (
+    sets.value.length === 0 &&
+    !shouldPrefillPreviousSets(sets.value, previousSets.value, didPrefill.value)
+  ) {
     await handleAddSet()
   }
+  await maybePrefillPrevious()
 })
 
-function formatDuration(seconds: number | null): string {
-  if (seconds == null) return '—'
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return m > 0 ? `${m}m ${s}s` : `${s}s`
+async function maybePrefillPrevious() {
+  const source = takeLastSets(previousSets.value, 2)
+  if (!shouldPrefillPreviousSets(sets.value, source, didPrefill.value)) return
+  didPrefill.value = true
+  await applyPreviousSets(props.workoutExercise.id, source)
 }
+
+watch(previousSets, () => {
+  void maybePrefillPrevious()
+})
 
 async function handleAddSet() {
   const nextNum = sets.value.length + 1
@@ -218,21 +228,8 @@ async function handleDeleteSet(id: number) {
   await deleteSet(id)
 }
 
-async function handleApplyPrevious() {
-  if (previousSets.value.length === 0 || applyingPrevious.value) return
-  applyingPrevious.value = true
-  await applyPreviousSets(props.workoutExercise.id, previousSets.value)
-  applyingPrevious.value = false
-}
-
 function hasLoggedSets(): boolean {
-  return sets.value.some(
-    (s) =>
-      s.weight_kg != null ||
-      s.reps != null ||
-      s.duration_seconds != null ||
-      s.distance_km != null,
-  )
+  return hasLoggedSetMetrics(sets.value)
 }
 
 function hasLoggedData(): boolean {
@@ -459,29 +456,6 @@ async function saveExtra() {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-text-3);
-}
-
-.we-card__prev-apply {
-  background: var(--color-primary-soft);
-  border: none;
-  border-radius: 8px;
-  width: 28px;
-  height: 28px;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--color-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-family: var(--font);
-  line-height: 1;
-}
-
-.we-card__prev-apply:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .we-card__prev-row {

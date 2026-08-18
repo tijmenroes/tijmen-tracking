@@ -14,7 +14,10 @@ export function useExerciseSets() {
       .select('*')
       .eq('workout_exercise_id', workoutExerciseId)
       .order('set_number')
-    if (err) { error.value = err.message; return }
+    if (err) {
+      error.value = err.message
+      return
+    }
     sets.value = data ?? []
   }
 
@@ -34,7 +37,10 @@ export function useExerciseSets() {
       .limit(1)
       .maybeSingle()
 
-    if (weErr) { error.value = weErr.message; return }
+    if (weErr) {
+      error.value = weErr.message
+      return
+    }
     if (!prevWe) return
 
     const { data, error: err } = await supabase
@@ -42,7 +48,10 @@ export function useExerciseSets() {
       .select('*')
       .eq('workout_exercise_id', prevWe.id)
       .order('set_number')
-    if (err) { error.value = err.message; return }
+    if (err) {
+      error.value = err.message
+      return
+    }
     previousSets.value = data ?? []
   }
 
@@ -61,13 +70,19 @@ export function useExerciseSets() {
       .insert({ workout_exercise_id: workoutExerciseId, ...payload })
       .select()
       .single()
-    if (err) { error.value = err.message; return null }
+    if (err) {
+      error.value = err.message
+      return null
+    }
     sets.value.push(data as ExerciseSet)
     return data as ExerciseSet
   }
 
-  async function updateSet(id: number, payload: Partial<Pick<ExerciseSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'distance_km'>>) {
-    const idx = sets.value.findIndex(s => s.id === id)
+  async function updateSet(
+    id: number,
+    payload: Partial<Pick<ExerciseSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'distance_km'>>,
+  ) {
+    const idx = sets.value.findIndex((s) => s.id === id)
     // Apply optimistically so local state (e.g. the prefill in handleAddSet)
     // reflects the edit immediately, rather than only after the round trip.
     const previous = idx !== -1 ? sets.value[idx] : undefined
@@ -89,29 +104,40 @@ export function useExerciseSets() {
 
   async function deleteSet(id: number) {
     const { error: err } = await supabase.from('exercise_sets').delete().eq('id', id)
-    if (err) { error.value = err.message; return }
-    sets.value = sets.value.filter(s => s.id !== id)
+    if (err) {
+      error.value = err.message
+      return
+    }
+    sets.value = sets.value.filter((s) => s.id !== id)
     // Re-number remaining sets
-    sets.value.forEach((s, i) => { s.set_number = i + 1 })
+    sets.value.forEach((s, i) => {
+      s.set_number = i + 1
+    })
   }
 
   /** Replace current sets with a copy of the previous session's sets. */
-  async function applyPreviousSets(workoutExerciseId: number, source: ExerciseSet[] = previousSets.value) {
+  async function applyPreviousSets(
+    workoutExerciseId: number,
+    source: ExerciseSet[] = previousSets.value,
+  ) {
     if (!source.length) return
 
     const currentIds = sets.value.map((s) => s.id)
     for (const id of currentIds) {
       const { error: err } = await supabase.from('exercise_sets').delete().eq('id', id)
-      if (err) { error.value = err.message; return }
+      if (err) {
+        error.value = err.message
+        return
+      }
     }
     sets.value = []
 
-    for (const prev of source) {
+    for (const [i, prev] of source.entries()) {
       const { data, error: err } = await supabase
         .from('exercise_sets')
         .insert({
           workout_exercise_id: workoutExerciseId,
-          set_number: prev.set_number,
+          set_number: i + 1,
           weight_kg: prev.weight_kg,
           reps: prev.reps,
           duration_seconds: prev.duration_seconds,
@@ -119,7 +145,10 @@ export function useExerciseSets() {
         })
         .select()
         .single()
-      if (err) { error.value = err.message; return }
+      if (err) {
+        error.value = err.message
+        return
+      }
       sets.value.push(data as ExerciseSet)
     }
   }

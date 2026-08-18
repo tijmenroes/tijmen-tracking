@@ -42,7 +42,16 @@ describe('useExerciseSets.fetchPreviousSets', () => {
     mockPrevWeMaybeSingle.mockResolvedValue({ data: { id: 55 }, error: null })
     mockSetsEqOrder.mockResolvedValue({
       data: [
-        { id: 1, workout_exercise_id: 55, set_number: 1, weight_kg: 20, reps: 8, duration_seconds: null, distance_km: null, created_at: 'x' },
+        {
+          id: 1,
+          workout_exercise_id: 55,
+          set_number: 1,
+          weight_kg: 20,
+          reps: 8,
+          duration_seconds: null,
+          distance_km: null,
+          created_at: 'x',
+        },
       ],
       error: null,
     })
@@ -68,11 +77,29 @@ describe('useExerciseSets.fetchPreviousSets', () => {
     const mockInsertSingle = vi
       .fn()
       .mockResolvedValueOnce({
-        data: { id: 10, workout_exercise_id: 99, set_number: 1, weight_kg: 80, reps: 10, duration_seconds: null, distance_km: null, created_at: 'x' },
+        data: {
+          id: 10,
+          workout_exercise_id: 99,
+          set_number: 1,
+          weight_kg: 80,
+          reps: 10,
+          duration_seconds: null,
+          distance_km: null,
+          created_at: 'x',
+        },
         error: null,
       })
       .mockResolvedValueOnce({
-        data: { id: 11, workout_exercise_id: 99, set_number: 2, weight_kg: 80, reps: 8, duration_seconds: null, distance_km: null, created_at: 'x' },
+        data: {
+          id: 11,
+          workout_exercise_id: 99,
+          set_number: 2,
+          weight_kg: 80,
+          reps: 8,
+          duration_seconds: null,
+          distance_km: null,
+          created_at: 'x',
+        },
         error: null,
       })
 
@@ -104,16 +131,46 @@ describe('useExerciseSets.fetchPreviousSets', () => {
 
     mockPrevWeMaybeSingle.mockResolvedValue({ data: { id: 55 }, error: null })
     mockSetsEqOrder.mockResolvedValue({
-      data: [{ id: 1, workout_exercise_id: 99, set_number: 1, weight_kg: null, reps: null, duration_seconds: null, distance_km: null, created_at: 'x' }],
+      data: [
+        {
+          id: 1,
+          workout_exercise_id: 99,
+          set_number: 1,
+          weight_kg: null,
+          reps: null,
+          duration_seconds: null,
+          distance_km: null,
+          created_at: 'x',
+        },
+      ],
       error: null,
     })
 
-    const { previousSets, sets, fetchPreviousSets, fetchSets, applyPreviousSets } = useExerciseSets()
+    const { previousSets, sets, fetchPreviousSets, fetchSets, applyPreviousSets } =
+      useExerciseSets()
     await fetchSets(99)
     await fetchPreviousSets(3, 11)
     previousSets.value = [
-      { id: 100, workout_exercise_id: 55, set_number: 1, weight_kg: 80, reps: 10, duration_seconds: null, distance_km: null, created_at: 'x' },
-      { id: 101, workout_exercise_id: 55, set_number: 2, weight_kg: 80, reps: 8, duration_seconds: null, distance_km: null, created_at: 'x' },
+      {
+        id: 100,
+        workout_exercise_id: 55,
+        set_number: 1,
+        weight_kg: 80,
+        reps: 10,
+        duration_seconds: null,
+        distance_km: null,
+        created_at: 'x',
+      },
+      {
+        id: 101,
+        workout_exercise_id: 55,
+        set_number: 2,
+        weight_kg: 80,
+        reps: 8,
+        duration_seconds: null,
+        distance_km: null,
+        created_at: 'x',
+      },
     ]
 
     await applyPreviousSets(99)
@@ -123,6 +180,86 @@ describe('useExerciseSets.fetchPreviousSets', () => {
     expect(sets.value[0]?.weight_kg).toBe(80)
     expect(sets.value[0]?.reps).toBe(10)
     expect(sets.value[1]?.reps).toBe(8)
+  })
+
+  it('applyPreviousSets renumbers last-session sets from 1', async () => {
+    const mockDeleteEq = vi.fn().mockResolvedValue({ error: null })
+    const mockInsert = vi.fn((payload: { set_number: number }) => ({
+      select: vi.fn(() => ({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: payload.set_number + 20,
+            workout_exercise_id: 99,
+            set_number: payload.set_number,
+            weight_kg: 90,
+            reps: 5,
+            duration_seconds: null,
+            distance_km: null,
+            created_at: 'x',
+          },
+          error: null,
+        }),
+      })),
+    }))
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'exercise_sets') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({ order: mockSetsEqOrder })),
+          })),
+          delete: vi.fn(() => ({ eq: mockDeleteEq })),
+          insert: mockInsert,
+        } as never
+      }
+      return {} as never
+    })
+
+    const { sets, applyPreviousSets } = useExerciseSets()
+    sets.value = [
+      {
+        id: 1,
+        workout_exercise_id: 99,
+        set_number: 1,
+        weight_kg: null,
+        reps: null,
+        duration_seconds: null,
+        distance_km: null,
+        created_at: 'x',
+      },
+    ]
+
+    await applyPreviousSets(99, [
+      {
+        id: 100,
+        workout_exercise_id: 55,
+        set_number: 3,
+        weight_kg: 90,
+        reps: 5,
+        duration_seconds: null,
+        distance_km: null,
+        created_at: 'x',
+      },
+      {
+        id: 101,
+        workout_exercise_id: 55,
+        set_number: 4,
+        weight_kg: 90,
+        reps: 4,
+        duration_seconds: null,
+        distance_km: null,
+        created_at: 'x',
+      },
+    ])
+
+    expect(mockInsert).toHaveBeenCalledTimes(2)
+    expect(mockInsert.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ set_number: 1, weight_kg: 90, reps: 5 }),
+    )
+    expect(mockInsert.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ set_number: 2, weight_kg: 90, reps: 4 }),
+    )
+    expect(sets.value.map((s) => s.set_number)).toEqual([1, 2])
   })
 
   it('updateSet applies the edit to local state immediately, before the network round trip resolves', async () => {
@@ -138,14 +275,27 @@ describe('useExerciseSets.fetchPreviousSets', () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({ order: mockSetsEqOrder })),
           })),
-          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ single: mockUpdateSingle })) })) })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({ select: vi.fn(() => ({ single: mockUpdateSingle })) })),
+          })),
         } as never
       }
       return {} as never
     })
 
     mockSetsEqOrder.mockResolvedValue({
-      data: [{ id: 1, workout_exercise_id: 99, set_number: 1, weight_kg: 20, reps: 8, duration_seconds: null, distance_km: null, created_at: 'x' }],
+      data: [
+        {
+          id: 1,
+          workout_exercise_id: 99,
+          set_number: 1,
+          weight_kg: 20,
+          reps: 8,
+          duration_seconds: null,
+          distance_km: null,
+          created_at: 'x',
+        },
+      ],
       error: null,
     })
 
@@ -159,7 +309,16 @@ describe('useExerciseSets.fetchPreviousSets', () => {
     expect(sets.value[0]?.weight_kg).toBe(25)
 
     resolveUpdate({
-      data: { id: 1, workout_exercise_id: 99, set_number: 1, weight_kg: 25, reps: 8, duration_seconds: null, distance_km: null, created_at: 'x' },
+      data: {
+        id: 1,
+        workout_exercise_id: 99,
+        set_number: 1,
+        weight_kg: 25,
+        reps: 8,
+        duration_seconds: null,
+        distance_km: null,
+        created_at: 'x',
+      },
       error: null,
     })
     await update

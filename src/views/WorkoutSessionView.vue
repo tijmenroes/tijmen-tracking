@@ -35,6 +35,7 @@
           :template-note="templateNotes.get(we.exercise_id) ?? null"
           :initial-sets="workoutExerciseSets.get(we.id) ?? []"
           :previous-sets="previousSetsByExercise.get(we.exercise_id) ?? []"
+          :best-set="bestSetByExercise.get(we.exercise_id) ?? null"
           :on-update-extra="updateWorkoutExercise"
           @remove="handleRemoveExercise"
           @logged-sets-change="(hasLogged) => onLoggedSetsChange(we.id, hasLogged)"
@@ -82,9 +83,7 @@
       </button>
 
       <div v-if="workout && !reordering" class="workout__footer">
-        <p class="workout__save-hint">
-          Lege sets worden bij het opslaan automatisch verwijderd.
-        </p>
+        <p class="workout__save-hint">Lege sets worden bij het opslaan automatisch verwijderd.</p>
         <button class="workout__save-btn" :disabled="saving || !canSaveWorkout" @click="handleSave">
           {{ saving ? 'Opslaan…' : 'Workout opslaan' }}
         </button>
@@ -147,7 +146,25 @@ import type { Exercise } from '@/types/fitness'
 
 const router = useRouter()
 const route = useRoute()
-const { workout, workoutExercises, workoutExerciseSets, previousSetsByExercise, fetchPreviousSetsForExercises, templateNotes, loading, error, loadWorkout, updateWorkout, addExerciseToWorkout, removeExerciseFromWorkout, reorderWorkoutExercises, updateWorkoutExercise, saveWorkout, deleteWorkout } = useWorkouts()
+const {
+  workout,
+  workoutExercises,
+  workoutExerciseSets,
+  previousSetsByExercise,
+  bestSetByExercise,
+  fetchPreviousSetsForExercises,
+  templateNotes,
+  loading,
+  error,
+  loadWorkout,
+  updateWorkout,
+  addExerciseToWorkout,
+  removeExerciseFromWorkout,
+  reorderWorkoutExercises,
+  updateWorkoutExercise,
+  saveWorkout,
+  deleteWorkout,
+} = useWorkouts()
 const exercisesStore = useExercisesStore()
 const { exercises, loading: exercisesLoading } = storeToRefs(exercisesStore)
 const { fetchExercises } = exercisesStore
@@ -199,15 +216,19 @@ const canSaveWorkout = computed(() =>
 const formattedDate = computed(() => {
   if (!workout.value) return ''
   const [y, m, d] = workout.value.date.split('-').map(Number)
-  return new Date(y!, m! - 1, d!).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+  return new Date(y!, m! - 1, d!).toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
 })
 
 onMounted(async () => {
   await Promise.all([fetchExercises(), fetchTags()])
   await loadWorkout(Number(route.params.id))
   revealRemainingCards()
-  // Load the "vorige keer" reference in the background so the exercises (with
-  // their current sets) render first; the previous-session data fills in after.
+  // Load best-set + last-session prefill in the background so the exercises
+  // (with their current sets) render first; reference data fills in after.
   if (workout.value) {
     fetchPreviousSetsForExercises(
       workoutExercises.value.map((we) => we.exercise_id),
@@ -223,7 +244,7 @@ async function handleConfirmExercises(selected: Exercise[]) {
   }
   // Make sure newly added exercises aren't hidden behind the progressive reveal.
   visibleCount.value = workoutExercises.value.length
-  // Refresh the "vorige keer" reference so newly added exercises get theirs too.
+  // Refresh session refs so newly added exercises get a best set + prefill too.
   if (workout.value) {
     fetchPreviousSetsForExercises(
       workoutExercises.value.map((we) => we.exercise_id),
@@ -262,7 +283,11 @@ async function handleDelete() {
   if (!error.value) router.push('/workout')
 }
 
-async function handleSaveWorkout(payload: { name: string | null; date: string; saveAsTemplate: boolean }) {
+async function handleSaveWorkout(payload: {
+  name: string | null
+  date: string
+  saveAsTemplate: boolean
+}) {
   if (!workout.value) return
   await updateWorkout(workout.value.id, { name: payload.name, date: payload.date })
   if (error.value) return

@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { useAuthStore } from '@/stores/auth'
 import { useExercisesStore } from '@/stores/exercises'
 import { useWorkouts, resetActiveWorkoutCache } from '@/composables/useWorkouts'
+import { supabase } from '@/lib/supabase'
 
 const mockWorkoutInsertSingle = vi.fn()
 const mockWorkoutSelectSingle = vi.fn()
@@ -31,13 +32,18 @@ vi.mock('@/lib/supabase', () => ({
               single: mockWorkoutSelectSingle,
               eq: vi.fn(() => ({
                 // level 2: after .eq('status') (recent/page) or .eq('template_id')
-                order: vi.fn(() => ({ limit: mockWorkoutRecentLimit, range: mockWorkoutPageRange })),
+                order: vi.fn(() => ({
+                  limit: mockWorkoutRecentLimit,
+                  range: mockWorkoutPageRange,
+                })),
                 eq: vi.fn(() => ({ order: mockWorkoutTemplateOrder })),
               })),
             })),
           })),
           insert: vi.fn(() => ({ select: vi.fn(() => ({ single: mockWorkoutInsertSingle })) })),
-          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ single: mockWorkoutUpdateSingle })) })) })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({ select: vi.fn(() => ({ single: mockWorkoutUpdateSingle })) })),
+          })),
           delete: vi.fn(() => ({ eq: mockWorkoutDeleteEq })),
         }
       }
@@ -53,6 +59,7 @@ vi.mock('@/lib/supabase', () => ({
       }
       return {}
     }),
+    rpc: vi.fn(),
   },
 }))
 
@@ -66,7 +73,15 @@ describe('useWorkouts', () => {
   })
 
   it('startWorkout inserts a new session and sets it active', async () => {
-    const created = { id: 1, user_id: 'test-user-id', date: '2026-07-04', name: 'Push A', notes: null, template_id: null, created_at: 'x' }
+    const created = {
+      id: 1,
+      user_id: 'test-user-id',
+      date: '2026-07-04',
+      name: 'Push A',
+      notes: null,
+      template_id: null,
+      created_at: 'x',
+    }
     mockWorkoutInsertSingle.mockResolvedValue({ data: created, error: null })
 
     const { workout, workoutExercises, activeWorkout, startWorkout } = useWorkouts()
@@ -90,11 +105,36 @@ describe('useWorkouts', () => {
   })
 
   it('loadWorkout fetches the workout and attaches exercises from the store', async () => {
-    const squat = { id: 3, name: 'Squat', type: 'strength' as const, notes: null, created_by: null, created_at: 'x' }
+    const squat = {
+      id: 3,
+      name: 'Squat',
+      type: 'strength' as const,
+      notes: null,
+      created_by: null,
+      created_at: 'x',
+    }
     useExercisesStore().$patch({ exercises: [squat], loaded: true })
 
-    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x' }
-    const we = [{ id: 20, workout_id: 7, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x' }]
+    const wk = {
+      id: 7,
+      user_id: 'test-user-id',
+      date: '2026-07-04',
+      name: null,
+      notes: null,
+      template_id: null,
+      created_at: 'x',
+    }
+    const we = [
+      {
+        id: 20,
+        workout_id: 7,
+        exercise_id: 3,
+        sort_order: 0,
+        notes: null,
+        pain_scale: null,
+        created_at: 'x',
+      },
+    ]
     mockWorkoutSelectSingle.mockResolvedValue({ data: wk, error: null })
     mockWeOrder.mockResolvedValue({ data: we, error: null })
 
@@ -108,8 +148,26 @@ describe('useWorkouts', () => {
   it('fetchRecentWorkouts maps the count and drops empty workouts', async () => {
     mockWorkoutRecentLimit.mockResolvedValue({
       data: [
-        { id: 1, user_id: 'test-user-id', date: '2026-07-04', name: 'Push A', notes: null, template_id: null, created_at: 'x', workout_exercises: [{ count: 3 }] },
-        { id: 2, user_id: 'test-user-id', date: '2026-07-03', name: null, notes: null, template_id: null, created_at: 'x', workout_exercises: [] },
+        {
+          id: 1,
+          user_id: 'test-user-id',
+          date: '2026-07-04',
+          name: 'Push A',
+          notes: null,
+          template_id: null,
+          created_at: 'x',
+          workout_exercises: [{ count: 3 }],
+        },
+        {
+          id: 2,
+          user_id: 'test-user-id',
+          date: '2026-07-03',
+          name: null,
+          notes: null,
+          template_id: null,
+          created_at: 'x',
+          workout_exercises: [],
+        },
       ],
       error: null,
     })
@@ -128,7 +186,16 @@ describe('useWorkouts', () => {
   it('fetchWorkoutsPage stores the page and total count', async () => {
     mockWorkoutPageRange.mockResolvedValue({
       data: [
-        { id: 5, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x', workout_exercises: [{ count: 2 }] },
+        {
+          id: 5,
+          user_id: 'test-user-id',
+          date: '2026-07-04',
+          name: null,
+          notes: null,
+          template_id: null,
+          created_at: 'x',
+          workout_exercises: [{ count: 2 }],
+        },
       ],
       count: 23,
       error: null,
@@ -143,7 +210,15 @@ describe('useWorkouts', () => {
   })
 
   it('updateWorkout updates the active workout row', async () => {
-    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x' }
+    const wk = {
+      id: 7,
+      user_id: 'test-user-id',
+      date: '2026-07-04',
+      name: null,
+      notes: null,
+      template_id: null,
+      created_at: 'x',
+    }
     const updated = { ...wk, name: 'Leg Day', date: '2026-07-01' }
     mockWorkoutSelectSingle.mockResolvedValue({ data: wk, error: null })
     mockWeOrder.mockResolvedValue({ data: [], error: null })
@@ -158,10 +233,21 @@ describe('useWorkouts', () => {
   })
 
   it('startWorkout with templateId copies template exercises', async () => {
-    const created = { id: 8, user_id: 'test-user-id', date: '2026-07-05', name: null, notes: null, template_id: 3, created_at: 'x' }
+    const created = {
+      id: 8,
+      user_id: 'test-user-id',
+      date: '2026-07-05',
+      name: null,
+      notes: null,
+      template_id: 3,
+      created_at: 'x',
+    }
     mockWorkoutInsertSingle.mockResolvedValue({ data: created, error: null })
     mockTeOrder.mockResolvedValue({
-      data: [{ exercise_id: 10, sort_order: 0 }, { exercise_id: 11, sort_order: 1 }],
+      data: [
+        { exercise_id: 10, sort_order: 0 },
+        { exercise_id: 11, sort_order: 1 },
+      ],
       error: null,
     })
     mockWeInsert.mockResolvedValue({ error: null })
@@ -178,7 +264,16 @@ describe('useWorkouts', () => {
   it('fetchWorkoutsByTemplate returns workouts linked to the template', async () => {
     mockWorkoutTemplateOrder.mockResolvedValue({
       data: [
-        { id: 12, user_id: 'test-user-id', date: '2026-07-04', name: 'Push', notes: null, template_id: 3, created_at: 'x', workout_exercises: [{ count: 4 }] },
+        {
+          id: 12,
+          user_id: 'test-user-id',
+          date: '2026-07-04',
+          name: 'Push',
+          notes: null,
+          template_id: 3,
+          created_at: 'x',
+          workout_exercises: [{ count: 4 }],
+        },
       ],
       error: null,
     })
@@ -195,9 +290,33 @@ describe('useWorkouts', () => {
 
     const { workoutExercises, reorderWorkoutExercises } = useWorkouts()
     workoutExercises.value = [
-      { id: 1, workout_id: 5, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x' },
-      { id: 2, workout_id: 5, exercise_id: 5, sort_order: 1, notes: null, pain_scale: null, created_at: 'x' },
-      { id: 3, workout_id: 5, exercise_id: 7, sort_order: 2, notes: null, pain_scale: null, created_at: 'x' },
+      {
+        id: 1,
+        workout_id: 5,
+        exercise_id: 3,
+        sort_order: 0,
+        notes: null,
+        pain_scale: null,
+        created_at: 'x',
+      },
+      {
+        id: 2,
+        workout_id: 5,
+        exercise_id: 5,
+        sort_order: 1,
+        notes: null,
+        pain_scale: null,
+        created_at: 'x',
+      },
+      {
+        id: 3,
+        workout_id: 5,
+        exercise_id: 7,
+        sort_order: 2,
+        notes: null,
+        pain_scale: null,
+        created_at: 'x',
+      },
     ]
 
     await reorderWorkoutExercises(0, 2)
@@ -213,8 +332,24 @@ describe('useWorkouts', () => {
 
     const { workoutExercises, error: err, reorderWorkoutExercises } = useWorkouts()
     workoutExercises.value = [
-      { id: 1, workout_id: 5, exercise_id: 3, sort_order: 0, notes: null, pain_scale: null, created_at: 'x' },
-      { id: 2, workout_id: 5, exercise_id: 5, sort_order: 1, notes: null, pain_scale: null, created_at: 'x' },
+      {
+        id: 1,
+        workout_id: 5,
+        exercise_id: 3,
+        sort_order: 0,
+        notes: null,
+        pain_scale: null,
+        created_at: 'x',
+      },
+      {
+        id: 2,
+        workout_id: 5,
+        exercise_id: 5,
+        sort_order: 1,
+        notes: null,
+        pain_scale: null,
+        created_at: 'x',
+      },
     ]
 
     await reorderWorkoutExercises(0, 1)
@@ -224,7 +359,15 @@ describe('useWorkouts', () => {
   })
 
   it('deleteWorkout clears the active workout when it is the one deleted', async () => {
-    const wk = { id: 7, user_id: 'test-user-id', date: '2026-07-04', name: null, notes: null, template_id: null, created_at: 'x' }
+    const wk = {
+      id: 7,
+      user_id: 'test-user-id',
+      date: '2026-07-04',
+      name: null,
+      notes: null,
+      template_id: null,
+      created_at: 'x',
+    }
     mockWorkoutSelectSingle.mockResolvedValue({ data: wk, error: null })
     mockWeOrder.mockResolvedValue({ data: [], error: null })
     mockWorkoutDeleteEq.mockResolvedValue({ error: null })
@@ -235,5 +378,79 @@ describe('useWorkouts', () => {
 
     expect(workout.value).toBeNull()
     expect(workoutExercises.value).toEqual([])
+  })
+
+  it('fetchPreviousSetsForExercises maps RPC rows into best + last-2 maps', async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [
+        {
+          exercise_id: 3,
+          best_set: {
+            id: 9,
+            workout_exercise_id: 50,
+            set_number: 2,
+            weight_kg: 100,
+            reps: 5,
+            duration_seconds: null,
+            distance_km: null,
+            created_at: 'x',
+          },
+          last_sets: [
+            {
+              id: 1,
+              workout_exercise_id: 55,
+              set_number: 1,
+              weight_kg: 80,
+              reps: 8,
+              duration_seconds: null,
+              distance_km: null,
+              created_at: 'x',
+            },
+            {
+              id: 2,
+              workout_exercise_id: 55,
+              set_number: 2,
+              weight_kg: 82,
+              reps: 6,
+              duration_seconds: null,
+              distance_km: null,
+              created_at: 'x',
+            },
+            {
+              id: 3,
+              workout_exercise_id: 55,
+              set_number: 3,
+              weight_kg: 85,
+              reps: 4,
+              duration_seconds: null,
+              distance_km: null,
+              created_at: 'x',
+            },
+          ],
+        },
+      ],
+      error: null,
+    } as never)
+
+    const { bestSetByExercise, previousSetsByExercise, fetchPreviousSetsForExercises } =
+      useWorkouts()
+    await fetchPreviousSetsForExercises([3, 3], 11)
+
+    expect(supabase.rpc).toHaveBeenCalledWith('exercise_session_refs', {
+      p_exercise_ids: [3],
+      p_exclude_workout_id: 11,
+    })
+    expect(bestSetByExercise.value.get(3)?.weight_kg).toBe(100)
+    expect(previousSetsByExercise.value.get(3)?.map((s) => s.set_number)).toEqual([2, 3])
+  })
+
+  it('fetchPreviousSetsForExercises skips the RPC when there are no exercises', async () => {
+    const { bestSetByExercise, previousSetsByExercise, fetchPreviousSetsForExercises } =
+      useWorkouts()
+    await fetchPreviousSetsForExercises([], 11)
+
+    expect(supabase.rpc).not.toHaveBeenCalled()
+    expect(bestSetByExercise.value.size).toBe(0)
+    expect(previousSetsByExercise.value.size).toBe(0)
   })
 })
