@@ -9,6 +9,13 @@ const mockWorkoutUpdateSingle = vi.fn()
 const mockWorkoutDeleteEq = vi.fn()
 const mockSetsDeleteIn = vi.fn()
 const mockWeDeleteEq = vi.fn()
+const { mockPublishWorkoutCompletion } = vi.hoisted(() => ({
+  mockPublishWorkoutCompletion: vi.fn<(_workoutId: number) => Promise<void>>(),
+}))
+
+vi.mock('@/services/activityPublisher', () => ({
+  publishWorkoutCompletion: mockPublishWorkoutCompletion,
+}))
 
 // workout_exercises `.select().eq()` results, consumed in call order.
 let weSelectResults: Array<{ data?: unknown; error: unknown; count?: number }> = []
@@ -63,6 +70,7 @@ describe('useWorkouts – active workout & save', () => {
     weSelectIdx = 0
     mockWeDeleteEq.mockResolvedValue({ error: null })
     mockSetsDeleteIn.mockResolvedValue({ error: null })
+    mockPublishWorkoutCompletion.mockResolvedValue(undefined)
   })
 
   it('fetchActiveWorkout returns the current draft with an exercise count', async () => {
@@ -139,6 +147,7 @@ describe('useWorkouts – active workout & save', () => {
     expect(mockSetsDeleteIn).toHaveBeenCalledWith('id', [11])
     // Exercise still has a filled set → not removed
     expect(mockWeDeleteEq).not.toHaveBeenCalled()
+    expect(mockPublishWorkoutCompletion).toHaveBeenCalledWith(99)
     expect(result).toEqual({ deleted: false })
   })
 
@@ -185,6 +194,7 @@ describe('useWorkouts – active workout & save', () => {
     expect(mockSetsDeleteIn).toHaveBeenCalledWith('id', [11])
     expect(mockWeDeleteEq).toHaveBeenCalled()
     expect(mockWorkoutDeleteEq).toHaveBeenCalled()
+    expect(mockPublishWorkoutCompletion).not.toHaveBeenCalled()
     expect(result).toEqual({ deleted: true })
   })
 

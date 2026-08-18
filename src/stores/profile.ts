@@ -5,6 +5,7 @@ import type { Profile } from '@/types/fitness'
 
 export const useProfileStore = defineStore('profile', () => {
   const isAdmin = ref(false)
+  const nickname = ref<string | null>(null)
   const goals = ref<string | null>(null)
   const notes = ref<string | null>(null)
   const llmPrompt = ref<string | null>(null)
@@ -14,10 +15,11 @@ export const useProfileStore = defineStore('profile', () => {
     if (loaded.value) return
     const { data } = await supabase
       .from('profiles')
-      .select('is_admin, goals, notes, llm_prompt')
+      .select('is_admin, nickname, goals, notes, llm_prompt')
       .single()
     if (data) {
       isAdmin.value = data.is_admin ?? false
+      nickname.value = data.nickname ?? null
       goals.value = data.goals ?? null
       notes.value = data.notes ?? null
       llmPrompt.value = data.llm_prompt ?? null
@@ -25,16 +27,18 @@ export const useProfileStore = defineStore('profile', () => {
     loaded.value = true
   }
 
-  async function save(updates: Pick<Profile, 'goals' | 'notes' | 'llm_prompt'>) {
+  async function save(updates: Pick<Profile, 'nickname' | 'goals' | 'notes' | 'llm_prompt'>) {
     const { error } = await supabase
       .from('profiles')
       .update({
+        nickname: updates.nickname,
         goals: updates.goals,
         notes: updates.notes,
         llm_prompt: updates.llm_prompt,
       })
       .eq('id', (await supabase.auth.getUser()).data.user?.id ?? '')
     if (!error) {
+      nickname.value = updates.nickname
       goals.value = updates.goals
       notes.value = updates.notes
       llmPrompt.value = updates.llm_prompt
@@ -44,11 +48,12 @@ export const useProfileStore = defineStore('profile', () => {
 
   function reset() {
     isAdmin.value = false
+    nickname.value = null
     goals.value = null
     notes.value = null
     llmPrompt.value = null
     loaded.value = false
   }
 
-  return { isAdmin, goals, notes, llmPrompt, loaded, load, save, reset }
+  return { isAdmin, nickname, goals, notes, llmPrompt, loaded, load, save, reset }
 })

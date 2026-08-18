@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useExercisesStore } from '@/stores/exercises'
+import { publishWorkoutCompletion } from '@/services/activityPublisher'
 import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
 const activeWorkout = ref<WorkoutSummary | null>(null)
@@ -273,6 +274,7 @@ export function useWorkouts() {
    */
   async function saveWorkout(id: number): Promise<{ deleted: boolean } | null> {
     error.value = null
+    const shouldPublish = workout.value?.id !== id || workout.value.status === 'active'
 
     const { data: wes, error: weErr } = await supabase
       .from('workout_exercises')
@@ -326,6 +328,7 @@ export function useWorkouts() {
     if (updErr) { error.value = updErr.message; return null }
     if (workout.value?.id === id) workout.value = data as Workout
     if (activeWorkout.value?.id === id) activeWorkout.value = null
+    if (shouldPublish) await publishWorkoutCompletion(id)
     return { deleted: false }
   }
 

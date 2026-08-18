@@ -81,9 +81,33 @@ export interface WorkoutExercise {
 export interface Profile {
   id: string
   is_admin: boolean
+  nickname: string | null
   goals: string | null
   notes: string | null
   llm_prompt: string | null
+  created_at: string
+}
+
+export type ActivityEventType = 'workout_completed' | 'weight_weekly'
+
+export interface ActivityEventPayload {
+  workout_name?: string
+  pr_count?: number
+  category?: 'loss' | 'stable' | 'gain'
+  delta_kg?: number
+  variant?: number
+}
+
+export interface ActivityEvent {
+  id: number
+  board_id: number
+  actor_user_id: string
+  actor_nickname: string
+  event_type: ActivityEventType
+  workout_id: number | null
+  weight_id: number | null
+  payload: ActivityEventPayload
+  occurred_at: string
   created_at: string
 }
 

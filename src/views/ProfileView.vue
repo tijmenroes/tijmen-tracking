@@ -11,6 +11,17 @@
     <div v-if="loading" class="profile__loading">Laden…</div>
 
     <div v-else class="profile__content">
+      <div class="card profile__section">
+        <label class="profile__section-label" for="nickname">Nickname</label>
+        <input
+          id="nickname"
+          v-model="form.nickname"
+          class="profile__textarea"
+          maxlength="40"
+          placeholder="Hoe noemen we je op het newsboard?"
+        />
+      </div>
+
       <!-- Appearance / theme -->
       <div class="card profile__section">
         <div class="profile__section-label">Weergave</div>
@@ -116,6 +127,7 @@ const currentWeight = ref<number | null>(null)
 const currentWeightDate = ref<string>('')
 
 const form = ref({
+  nickname: '',
   goals: '',
   notes: '',
   llmPrompt: '',
@@ -124,6 +136,7 @@ const form = ref({
 onMounted(async () => {
   await Promise.all([profileStore.load(), fetchWeights()])
 
+  form.value.nickname = profileStore.nickname ?? ''
   form.value.goals = profileStore.goals ?? ''
   form.value.notes = profileStore.notes ?? ''
   form.value.llmPrompt = profileStore.llmPrompt ?? ''
@@ -146,6 +159,7 @@ async function handleSave() {
   saveSuccess.value = false
 
   const err = await profileStore.save({
+    nickname: form.value.nickname.trim() || null,
     goals: form.value.goals || null,
     notes: form.value.notes || null,
     llm_prompt: form.value.llmPrompt || null,
