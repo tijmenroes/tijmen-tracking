@@ -5,6 +5,7 @@ import {
   pickHeaviestSet,
   shouldPrefillPreviousSets,
   mapSessionRefRows,
+  splitPhantomEmptySets,
 } from '@/utils/sessionRefs'
 
 function set(partial: Partial<ExerciseSet>): ExerciseSet {
@@ -130,5 +131,48 @@ describe('mapSessionRefRows', () => {
     ])
     expect(bestSetByExercise.has(7)).toBe(false)
     expect(previousSetsByExercise.get(7)).toEqual([])
+  })
+})
+
+describe('splitPhantomEmptySets', () => {
+  it('drops an empty set that sits before a filled one', () => {
+    const { kept, phantom } = splitPhantomEmptySets([
+      set({ id: 1, set_number: 1 }),
+      set({ id: 2, set_number: 1, weight_kg: 80, reps: 10 }),
+      set({ id: 3, set_number: 2, weight_kg: 80, reps: 8 }),
+    ])
+
+    expect(phantom.map((s) => s.id)).toEqual([1])
+    expect(kept.map((s) => s.id)).toEqual([2, 3])
+  })
+
+  it('keeps a trailing empty set — that is the row being filled in', () => {
+    const { kept, phantom } = splitPhantomEmptySets([
+      set({ id: 1, set_number: 1, weight_kg: 80, reps: 10 }),
+      set({ id: 2, set_number: 2 }),
+    ])
+
+    expect(phantom).toEqual([])
+    expect(kept.map((s) => s.id)).toEqual([1, 2])
+  })
+
+  it('keeps an all-empty list untouched', () => {
+    const sets = [set({ id: 1, set_number: 1 }), set({ id: 2, set_number: 2 })]
+    const { kept, phantom } = splitPhantomEmptySets(sets)
+
+    expect(phantom).toEqual([])
+    expect(kept).toEqual(sets)
+  })
+
+  it('drops empty sets between filled ones too', () => {
+    const { kept, phantom } = splitPhantomEmptySets([
+      set({ id: 1, set_number: 1, weight_kg: 80, reps: 10 }),
+      set({ id: 2, set_number: 2 }),
+      set({ id: 3, set_number: 3, reps: 8 }),
+      set({ id: 4, set_number: 4 }),
+    ])
+
+    expect(phantom.map((s) => s.id)).toEqual([2])
+    expect(kept.map((s) => s.id)).toEqual([1, 3, 4])
   })
 })

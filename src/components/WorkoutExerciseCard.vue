@@ -189,6 +189,12 @@ const showRemoveConfirm = ref(false)
 const localNotes = ref<string>(props.workoutExercise.notes ?? '')
 const localPainScale = ref<number | null>(props.workoutExercise.pain_scale ?? null)
 
+// The mount-time empty set is inserted before the previous-session reference
+// arrives. Both write sets, so the prefill has to wait for that insert to land —
+// otherwise it decides against a `sets` that is still empty, replaces nothing,
+// and the insert lands afterwards as a phantom empty first set.
+let pendingInitialSet: Promise<void> | null = null
+
 onMounted(async () => {
   // Sets are provided by the parent in one bulk fetch; seed local state from them.
   sets.value = [...(props.initialSets ?? [])]
@@ -196,12 +202,18 @@ onMounted(async () => {
     sets.value.length === 0 &&
     !shouldPrefillPreviousSets(sets.value, previousSets.value, didPrefill.value)
   ) {
-    await handleAddSet()
+    pendingInitialSet = handleAddSet()
+    try {
+      await pendingInitialSet
+    } finally {
+      pendingInitialSet = null
+    }
   }
   await maybePrefillPrevious()
 })
 
 async function maybePrefillPrevious() {
+  if (pendingInitialSet) await pendingInitialSet
   const source = takeLastSets(previousSets.value, 2)
   if (!shouldPrefillPreviousSets(sets.value, source, didPrefill.value)) return
   didPrefill.value = true

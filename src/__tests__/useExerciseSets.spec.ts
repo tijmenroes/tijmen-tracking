@@ -74,10 +74,9 @@ describe('useExerciseSets.fetchPreviousSets', () => {
 
   it('applyPreviousSets replaces current sets with previous values', async () => {
     const mockDeleteEq = vi.fn().mockResolvedValue({ error: null })
-    const mockInsertSingle = vi
-      .fn()
-      .mockResolvedValueOnce({
-        data: {
+    const mockInsertSelect = vi.fn().mockResolvedValue({
+      data: [
+        {
           id: 10,
           workout_exercise_id: 99,
           set_number: 1,
@@ -87,10 +86,7 @@ describe('useExerciseSets.fetchPreviousSets', () => {
           distance_km: null,
           created_at: 'x',
         },
-        error: null,
-      })
-      .mockResolvedValueOnce({
-        data: {
+        {
           id: 11,
           workout_exercise_id: 99,
           set_number: 2,
@@ -100,8 +96,9 @@ describe('useExerciseSets.fetchPreviousSets', () => {
           distance_km: null,
           created_at: 'x',
         },
-        error: null,
-      })
+      ],
+      error: null,
+    })
 
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === 'exercise_sets') {
@@ -110,7 +107,7 @@ describe('useExerciseSets.fetchPreviousSets', () => {
             eq: vi.fn(() => ({ order: mockSetsEqOrder })),
           })),
           delete: vi.fn(() => ({ eq: mockDeleteEq })),
-          insert: vi.fn(() => ({ select: vi.fn(() => ({ single: mockInsertSingle })) })),
+          insert: vi.fn(() => ({ select: mockInsertSelect })),
         } as never
       }
       if (table === 'workout_exercises') {
@@ -175,7 +172,8 @@ describe('useExerciseSets.fetchPreviousSets', () => {
 
     await applyPreviousSets(99)
 
-    expect(mockDeleteEq).toHaveBeenCalledWith('id', 1)
+    // Deletes by parent id, so a set whose insert was still in flight goes too.
+    expect(mockDeleteEq).toHaveBeenCalledWith('workout_exercise_id', 99)
     expect(sets.value).toHaveLength(2)
     expect(sets.value[0]?.weight_kg).toBe(80)
     expect(sets.value[0]?.reps).toBe(10)
@@ -184,22 +182,20 @@ describe('useExerciseSets.fetchPreviousSets', () => {
 
   it('applyPreviousSets renumbers last-session sets from 1', async () => {
     const mockDeleteEq = vi.fn().mockResolvedValue({ error: null })
-    const mockInsert = vi.fn((payload: { set_number: number }) => ({
-      select: vi.fn(() => ({
-        single: vi.fn().mockResolvedValue({
-          data: {
-            id: payload.set_number + 20,
-            workout_exercise_id: 99,
-            set_number: payload.set_number,
-            weight_kg: 90,
-            reps: 5,
-            duration_seconds: null,
-            distance_km: null,
-            created_at: 'x',
-          },
-          error: null,
-        }),
-      })),
+    const mockInsert = vi.fn((payload: Array<{ set_number: number; reps: number | null }>) => ({
+      select: vi.fn().mockResolvedValue({
+        data: payload.map((row, i) => ({
+          id: i + 21,
+          workout_exercise_id: 99,
+          set_number: row.set_number,
+          weight_kg: 90,
+          reps: row.reps,
+          duration_seconds: null,
+          distance_km: null,
+          created_at: 'x',
+        })),
+        error: null,
+      }),
     }))
 
     vi.mocked(supabase.from).mockImplementation((table: string) => {
@@ -252,13 +248,12 @@ describe('useExerciseSets.fetchPreviousSets', () => {
       },
     ])
 
-    expect(mockInsert).toHaveBeenCalledTimes(2)
-    expect(mockInsert.mock.calls[0]?.[0]).toEqual(
+    // One bulk insert, renumbered from 1.
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+    expect(mockInsert.mock.calls[0]?.[0]).toEqual([
       expect.objectContaining({ set_number: 1, weight_kg: 90, reps: 5 }),
-    )
-    expect(mockInsert.mock.calls[1]?.[0]).toEqual(
       expect.objectContaining({ set_number: 2, weight_kg: 90, reps: 4 }),
-    )
+    ])
     expect(sets.value.map((s) => s.set_number)).toEqual([1, 2])
   })
 

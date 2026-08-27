@@ -16,6 +16,7 @@ const mockWorkoutTemplateOrder = vi.fn()
 const mockWeOrder = vi.fn()
 const mockWeInsert = vi.fn()
 const mockWeUpdateSelect = vi.fn()
+const mockSetsDeleteIn = vi.fn()
 const mockTeOrder = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
@@ -53,6 +54,9 @@ vi.mock('@/lib/supabase', () => ({
           insert: mockWeInsert,
           update: vi.fn(() => ({ eq: vi.fn(() => ({ select: mockWeUpdateSelect })) })),
         }
+      }
+      if (table === 'exercise_sets') {
+        return { delete: vi.fn(() => ({ in: mockSetsDeleteIn })) }
       }
       if (table === 'template_exercises') {
         return { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: mockTeOrder })) })) }
@@ -283,6 +287,69 @@ describe('useWorkouts', () => {
 
     expect(templateWorkouts.value).toHaveLength(1)
     expect(templateWorkouts.value[0]?.exercise_count).toBe(4)
+  })
+
+  it('loadWorkout drops empty sets that sit before a filled one', async () => {
+    const squat = {
+      id: 3,
+      name: 'Squat',
+      type: 'strength' as const,
+      notes: null,
+      created_by: null,
+      created_at: 'x',
+    }
+    useExercisesStore().$patch({ exercises: [squat], loaded: true })
+
+    const emptySet = {
+      id: 10,
+      workout_exercise_id: 20,
+      set_number: 1,
+      weight_kg: null,
+      reps: null,
+      duration_seconds: null,
+      distance_km: null,
+      created_at: 'x',
+    }
+    mockWorkoutSelectSingle.mockResolvedValue({
+      data: {
+        id: 7,
+        user_id: 'test-user-id',
+        date: '2026-07-04',
+        name: null,
+        notes: null,
+        template_id: null,
+        created_at: 'x',
+      },
+      error: null,
+    })
+    mockWeOrder.mockResolvedValue({
+      data: [
+        {
+          id: 20,
+          workout_id: 7,
+          exercise_id: 3,
+          sort_order: 0,
+          notes: null,
+          pain_scale: null,
+          created_at: 'x',
+          exercise_sets: [
+            emptySet,
+            { ...emptySet, id: 11, set_number: 1, weight_kg: 80, reps: 10 },
+            { ...emptySet, id: 12, set_number: 2, weight_kg: 80, reps: 8 },
+          ],
+        },
+      ],
+      error: null,
+    })
+    mockSetsDeleteIn.mockResolvedValue({ error: null })
+
+    const { workoutExerciseSets, loadWorkout } = useWorkouts()
+    await loadWorkout(7)
+
+    const sets = workoutExerciseSets.value.get(20) ?? []
+    expect(sets.map((s) => s.id)).toEqual([11, 12])
+    expect(sets.map((s) => s.set_number)).toEqual([1, 2])
+    expect(mockSetsDeleteIn).toHaveBeenCalledWith('id', [10])
   })
 
   it('reorderWorkoutExercises persists sort_order without touching the template', async () => {

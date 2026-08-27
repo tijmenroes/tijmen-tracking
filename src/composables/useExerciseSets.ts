@@ -122,35 +122,37 @@ export function useExerciseSets() {
   ) {
     if (!source.length) return
 
-    const currentIds = sets.value.map((s) => s.id)
-    for (const id of currentIds) {
-      const { error: err } = await supabase.from('exercise_sets').delete().eq('id', id)
-      if (err) {
-        error.value = err.message
-        return
-      }
+    // Delete by workout_exercise_id instead of by the ids we happen to know
+    // locally: a set whose insert was still in flight when this ran is missing
+    // from sets.value, and would otherwise survive as a phantom empty set.
+    const { error: delErr } = await supabase
+      .from('exercise_sets')
+      .delete()
+      .eq('workout_exercise_id', workoutExerciseId)
+    if (delErr) {
+      error.value = delErr.message
+      return
     }
     sets.value = []
 
-    for (const [i, prev] of source.entries()) {
-      const { data, error: err } = await supabase
-        .from('exercise_sets')
-        .insert({
+    const { data, error: err } = await supabase
+      .from('exercise_sets')
+      .insert(
+        source.map((prev, i) => ({
           workout_exercise_id: workoutExerciseId,
           set_number: i + 1,
           weight_kg: prev.weight_kg,
           reps: prev.reps,
           duration_seconds: prev.duration_seconds,
           distance_km: prev.distance_km,
-        })
-        .select()
-        .single()
-      if (err) {
-        error.value = err.message
-        return
-      }
-      sets.value.push(data as ExerciseSet)
+        })),
+      )
+      .select()
+    if (err) {
+      error.value = err.message
+      return
     }
+    sets.value = [...((data ?? []) as ExerciseSet[])].sort((a, b) => a.set_number - b.set_number)
   }
 
   return {

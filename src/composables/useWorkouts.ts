@@ -3,7 +3,11 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import { useExercisesStore } from '@/stores/exercises'
 import { publishWorkoutCompletion } from '@/services/activityPublisher'
-import { mapSessionRefRows, type ExerciseSessionRefRow } from '@/utils/sessionRefs'
+import {
+  mapSessionRefRows,
+  splitPhantomEmptySets,
+  type ExerciseSessionRefRow,
+} from '@/utils/sessionRefs'
 import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
 const activeWorkout = ref<WorkoutSummary | null>(null)
@@ -452,16 +456,29 @@ export function useWorkouts() {
     }
 
     const setsMap = new Map<number, ExerciseSet[]>()
+    const phantomIds: number[] = []
     const rows = (data ?? []).map((row) => {
       const { exercise_sets, ...we } = row as Omit<WorkoutExercise, 'exercise'> & {
         exercise_sets?: ExerciseSet[]
       }
       const sets = [...(exercise_sets ?? [])].sort((a, b) => a.set_number - b.set_number)
-      setsMap.set(we.id, sets)
+      const { kept, phantom } = splitPhantomEmptySets(sets)
+      phantomIds.push(...phantom.map((s) => s.id))
+      setsMap.set(
+        we.id,
+        kept.map((s, i) => ({ ...s, set_number: i + 1 })),
+      )
       return we
     })
     workoutExercises.value = rows.map(attachExercise)
     workoutExerciseSets.value = setsMap
+
+    // Clear out empty sets left behind by the prefill race (see
+    // splitPhantomEmptySets). Best-effort: a failure here is cosmetic, and
+    // surfacing it would replace the session screen with an error.
+    if (phantomIds.length) {
+      await supabase.from('exercise_sets').delete().in('id', phantomIds)
+    }
   }
 
   /**

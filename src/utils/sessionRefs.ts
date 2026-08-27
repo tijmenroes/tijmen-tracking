@@ -64,3 +64,28 @@ export function mapSessionRefRows(rows: ExerciseSessionRefRow[]): {
   }
   return { bestSetByExercise, previousSetsByExercise }
 }
+
+/**
+ * Split off empty sets that sit before a filled one. Those are leftovers from a
+ * set whose insert was still in flight when the last-session prefill replaced
+ * the sets, and they show up as a phantom empty first set. A *trailing* empty
+ * set is the row the user is about to fill in, so it is kept.
+ */
+export function splitPhantomEmptySets(sets: ExerciseSet[]): {
+  kept: ExerciseSet[]
+  phantom: ExerciseSet[]
+} {
+  let lastFilled = -1
+  sets.forEach((s, i) => {
+    if (hasLoggedSetMetrics([s])) lastFilled = i
+  })
+  if (lastFilled <= 0) return { kept: sets, phantom: [] }
+
+  const kept: ExerciseSet[] = []
+  const phantom: ExerciseSet[] = []
+  sets.forEach((s, i) => {
+    if (i < lastFilled && !hasLoggedSetMetrics([s])) phantom.push(s)
+    else kept.push(s)
+  })
+  return { kept, phantom }
+}
