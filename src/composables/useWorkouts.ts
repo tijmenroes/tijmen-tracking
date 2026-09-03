@@ -482,7 +482,8 @@ export function useWorkouts() {
   }
 
   /**
-   * Load all-time heaviest set + last 2 previous-session sets for a batch of
+   * Load all-time heaviest set + the previous session's last sets (capped at
+   * `MAX_PREVIOUS_SETS`) for a batch of
    * exercises in one RPC. Excludes the current workout so same-day repeats
    * don't reference themselves.
    */

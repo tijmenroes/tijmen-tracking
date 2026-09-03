@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { ExerciseSet } from '@/types/fitness'
 import {
+  MAX_PREVIOUS_SETS,
   takeLastSets,
   pickHeaviestSet,
   shouldPrefillPreviousSets,
@@ -23,6 +24,13 @@ function set(partial: Partial<ExerciseSet>): ExerciseSet {
 }
 
 describe('takeLastSets', () => {
+  it('defaults to MAX_PREVIOUS_SETS', () => {
+    const sets = Array.from({ length: MAX_PREVIOUS_SETS + 3 }, (_, i) =>
+      set({ id: i + 1, set_number: i + 1 }),
+    )
+    expect(takeLastSets(sets)).toHaveLength(MAX_PREVIOUS_SETS)
+  })
+
   it('returns the last N sets by set_number, keeping ascending order', () => {
     const sets = [
       set({ id: 1, set_number: 1, weight_kg: 60 }),
@@ -108,7 +116,7 @@ describe('shouldPrefillPreviousSets', () => {
 })
 
 describe('mapSessionRefRows', () => {
-  it('maps one best set and caps last sets at 2', () => {
+  it('maps one best set and keeps every last set up to the cap', () => {
     const { bestSetByExercise, previousSetsByExercise } = mapSessionRefRows([
       {
         exercise_id: 3,
@@ -122,7 +130,23 @@ describe('mapSessionRefRows', () => {
     ])
 
     expect(bestSetByExercise.get(3)?.weight_kg).toBe(120)
-    expect(previousSetsByExercise.get(3)?.map((s) => s.set_number)).toEqual([2, 3])
+    expect(previousSetsByExercise.get(3)?.map((s) => s.set_number)).toEqual([1, 2, 3])
+  })
+
+  it('caps last sets at MAX_PREVIOUS_SETS', () => {
+    const { previousSetsByExercise } = mapSessionRefRows([
+      {
+        exercise_id: 4,
+        best_set: null,
+        last_sets: Array.from({ length: MAX_PREVIOUS_SETS + 2 }, (_, i) =>
+          set({ id: i + 1, set_number: i + 1, weight_kg: 60 + i }),
+        ),
+      },
+    ])
+
+    const numbers = previousSetsByExercise.get(4)?.map((s) => s.set_number)
+    expect(numbers).toHaveLength(MAX_PREVIOUS_SETS)
+    expect(numbers?.[numbers.length - 1]).toBe(MAX_PREVIOUS_SETS + 2)
   })
 
   it('skips a missing best set and treats null last_sets as empty', () => {

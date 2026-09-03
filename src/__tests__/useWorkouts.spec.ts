@@ -447,7 +447,7 @@ describe('useWorkouts', () => {
     expect(workoutExercises.value).toEqual([])
   })
 
-  it('fetchPreviousSetsForExercises maps RPC rows into best + last-2 maps', async () => {
+  it('fetchPreviousSetsForExercises maps RPC rows into best + last-sets maps', async () => {
     vi.mocked(supabase.rpc).mockResolvedValue({
       data: [
         {
@@ -508,7 +508,7 @@ describe('useWorkouts', () => {
       p_exclude_workout_id: 11,
     })
     expect(bestSetByExercise.value.get(3)?.weight_kg).toBe(100)
-    expect(previousSetsByExercise.value.get(3)?.map((s) => s.set_number)).toEqual([2, 3])
+    expect(previousSetsByExercise.value.get(3)?.map((s) => s.set_number)).toEqual([1, 2, 3])
   })
 
   it('fetchPreviousSetsForExercises skips the RPC when there are no exercises', async () => {

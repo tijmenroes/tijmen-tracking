@@ -429,8 +429,9 @@ create trigger on_weight_insert_emit_weekly_activity
   for each row execute function public.emit_weekly_weight_activity();
 
 -- ------------------------------------------------------------
--- Session references (migration_013)
--- One round-trip: all-time heaviest set + last 2 sets of the previous session.
+-- Session references (migration_013, cap raised in migration_014)
+-- One round-trip: all-time heaviest set + last 5 sets of the previous session.
+-- Keep the cap in sync with MAX_PREVIOUS_SETS in src/utils/sessionRefs.ts.
 -- ------------------------------------------------------------
 create or replace function public.exercise_session_refs(
   p_exercise_ids bigint[],
@@ -510,7 +511,7 @@ as $$
       from exercise_sets es
       where es.workout_exercise_id = latest_we.workout_exercise_id
       order by es.set_number desc
-      limit 2
+      limit 5
     ) es on true
     group by latest_we.exercise_id
   )

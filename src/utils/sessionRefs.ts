@@ -1,7 +1,14 @@
 import type { ExerciseSet } from '@/types/fitness'
 
+/**
+ * Cap on previous-session sets that are carried into a new session. The same
+ * number is hardcoded in the `exercise_session_refs` RPC
+ * (`supabase/migration_014_previous_sets_limit.sql`) — keep the two in sync.
+ */
+export const MAX_PREVIOUS_SETS = 5
+
 /** Last N sets by `set_number` (ascending), for input prefill. */
-export function takeLastSets(sets: ExerciseSet[], max = 2): ExerciseSet[] {
+export function takeLastSets(sets: ExerciseSet[], max = MAX_PREVIOUS_SETS): ExerciseSet[] {
   if (max <= 0 || sets.length === 0) return []
   return [...sets].sort((a, b) => a.set_number - b.set_number).slice(-max)
 }
@@ -60,7 +67,10 @@ export function mapSessionRefRows(rows: ExerciseSessionRefRow[]): {
   const previousSetsByExercise = new Map<number, ExerciseSet[]>()
   for (const row of rows) {
     if (row.best_set) bestSetByExercise.set(row.exercise_id, row.best_set)
-    previousSetsByExercise.set(row.exercise_id, takeLastSets(row.last_sets ?? [], 2))
+    previousSetsByExercise.set(
+      row.exercise_id,
+      takeLastSets(row.last_sets ?? [], MAX_PREVIOUS_SETS),
+    )
   }
   return { bestSetByExercise, previousSetsByExercise }
 }

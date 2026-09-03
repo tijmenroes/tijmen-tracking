@@ -153,7 +153,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import type { WorkoutExercise, ExerciseSet } from '@/types/fitness'
 import { useExerciseSets } from '@/composables/useExerciseSets'
-import { shouldPrefillPreviousSets, takeLastSets, hasLoggedSetMetrics } from '@/utils/sessionRefs'
+import {
+  shouldPrefillPreviousSets,
+  takeLastSets,
+  hasLoggedSetMetrics,
+  MAX_PREVIOUS_SETS,
+} from '@/utils/sessionRefs'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const props = defineProps<{
@@ -161,7 +166,7 @@ const props = defineProps<{
   templateNote?: string | null
   /** Current sets, loaded in bulk by the parent (no per-card fetch). */
   initialSets?: ExerciseSet[]
-  /** Previous-session sets (max 2) used to prefill empty inputs. */
+  /** Previous-session sets (max `MAX_PREVIOUS_SETS`) used to prefill empty inputs. */
   previousSets?: ExerciseSet[]
   /** All-time heaviest set for the "Beste" reference; may arrive after mount. */
   bestSet?: ExerciseSet | null
@@ -214,7 +219,7 @@ onMounted(async () => {
 
 async function maybePrefillPrevious() {
   if (pendingInitialSet) await pendingInitialSet
-  const source = takeLastSets(previousSets.value, 2)
+  const source = takeLastSets(previousSets.value, MAX_PREVIOUS_SETS)
   if (!shouldPrefillPreviousSets(sets.value, source, didPrefill.value)) return
   didPrefill.value = true
   await applyPreviousSets(props.workoutExercise.id, source)
