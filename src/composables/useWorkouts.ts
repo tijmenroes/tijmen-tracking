@@ -536,6 +536,41 @@ export function useWorkouts() {
   }
 
   /**
+   * Swap an exercise for another one at the same position. The new row takes
+   * over the old sort_order and the old row goes (its sets cascade with it), so
+   * the replacement starts fresh — exactly like adding it, minus the drag.
+   */
+  async function replaceExerciseInWorkout(workoutExerciseId: number, exerciseId: number) {
+    const old = workoutExercises.value.find((we) => we.id === workoutExerciseId)
+    if (!workout.value || !old) return null
+    await exercisesStore.fetchExercises()
+    // Insert before deleting: if the delete fails, the worst case is both
+    // exercises in the session instead of the old one gone with nothing in its place.
+    const { data, error: insErr } = await supabase
+      .from('workout_exercises')
+      .insert({ workout_id: workout.value.id, exercise_id: exerciseId, sort_order: old.sort_order })
+      .select('*')
+      .single()
+    if (insErr) {
+      error.value = insErr.message
+      return null
+    }
+    const { error: delErr } = await supabase
+      .from('workout_exercises')
+      .delete()
+      .eq('id', workoutExerciseId)
+    if (delErr) {
+      error.value = delErr.message
+      return null
+    }
+    const row = attachExercise(data)
+    workoutExercises.value = workoutExercises.value.map((we) =>
+      we.id === workoutExerciseId ? row : we,
+    )
+    return row
+  }
+
+  /**
    * Move an exercise within this session. Only workout_exercises rows are
    * touched, so a session started from a template never changes the template.
    */
@@ -602,6 +637,7 @@ export function useWorkouts() {
     updateWorkout,
     addExerciseToWorkout,
     removeExerciseFromWorkout,
+    replaceExerciseInWorkout,
     reorderWorkoutExercises,
     updateWorkoutExercise,
     fetchWorkoutExercises,

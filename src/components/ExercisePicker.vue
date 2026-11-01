@@ -4,7 +4,9 @@
       <div class="picker-sheet" :class="{ 'picker-sheet--open': sheetOpen }">
         <div class="picker-sheet__handle" />
         <div class="picker-sheet__header">
-          <h2 class="picker-sheet__title">Oefening toevoegen</h2>
+          <h2 class="picker-sheet__title">
+            {{ replacing ? 'Oefening vervangen' : 'Oefening toevoegen' }}
+          </h2>
           <button class="picker-sheet__close" type="button" @click="confirm">×</button>
         </div>
 
@@ -71,7 +73,13 @@ import ExerciseFilterBar from '@/components/ExerciseFilterBar.vue'
 
 const SHEET_CLOSE_MS = 320
 
-const props = defineProps<{ exercises: Exercise[]; tags: Tag[]; loading: boolean }>()
+const props = defineProps<{
+  exercises: Exercise[]
+  tags: Tag[]
+  loading: boolean
+  /** Pick exactly one exercise to take the place of an existing one. */
+  mode?: 'add' | 'replace'
+}>()
 const emit = defineEmits<{ (e: 'confirm', exercises: Exercise[]): void }>()
 
 const exercisesStore = useExercisesStore()
@@ -102,15 +110,22 @@ onMounted(() => {
   })
 })
 
-const confirmLabel = computed(() =>
-  selectedIds.value.length > 0 ? `Toevoegen (${selectedIds.value.length})` : 'Toevoegen',
-)
+const replacing = computed(() => props.mode === 'replace')
+
+const confirmLabel = computed(() => {
+  if (replacing.value) return 'Vervangen'
+  return selectedIds.value.length > 0 ? `Toevoegen (${selectedIds.value.length})` : 'Toevoegen'
+})
 
 function isSelected(id: number) {
   return selectedIds.value.includes(id)
 }
 
 function toggle(id: number) {
+  if (replacing.value) {
+    selectedIds.value = isSelected(id) ? [] : [id]
+    return
+  }
   const i = selectedIds.value.indexOf(id)
   if (i === -1) selectedIds.value.push(id)
   else selectedIds.value.splice(i, 1)

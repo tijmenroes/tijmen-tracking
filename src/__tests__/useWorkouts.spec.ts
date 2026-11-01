@@ -16,6 +16,7 @@ const mockWorkoutTemplateOrder = vi.fn()
 const mockWeOrder = vi.fn()
 const mockWeInsert = vi.fn()
 const mockWeUpdateSelect = vi.fn()
+const mockWeDeleteEq = vi.fn()
 const mockSetsDeleteIn = vi.fn()
 const mockTeOrder = vi.fn()
 
@@ -53,6 +54,7 @@ vi.mock('@/lib/supabase', () => ({
           select: vi.fn(() => ({ eq: vi.fn(() => ({ order: mockWeOrder })) })),
           insert: mockWeInsert,
           update: vi.fn(() => ({ eq: vi.fn(() => ({ select: mockWeUpdateSelect })) })),
+          delete: vi.fn(() => ({ eq: mockWeDeleteEq })),
         }
       }
       if (table === 'exercise_sets') {
@@ -423,6 +425,86 @@ describe('useWorkouts', () => {
 
     expect(workoutExercises.value.map((we) => we.id)).toEqual([1, 2])
     expect(err.value).toBe('nope')
+  })
+
+  describe('replaceExerciseInWorkout', () => {
+    const squat = {
+      id: 9,
+      name: 'Squat',
+      type: 'strength' as const,
+      notes: null,
+      created_by: null,
+      created_at: 'x',
+    }
+
+    function setup() {
+      useExercisesStore().$patch({ exercises: [squat], loaded: true })
+      const wk = useWorkouts()
+      wk.workout.value = {
+        id: 5,
+        user_id: 'test-user-id',
+        date: '2026-11-01',
+        name: null,
+        notes: null,
+        template_id: null,
+        status: 'active',
+        created_at: 'x',
+        saved_at: null,
+      }
+      wk.workoutExercises.value = [1, 2, 3].map((id) => ({
+        id,
+        workout_id: 5,
+        exercise_id: id + 2,
+        // Gaps from earlier removals: the replacement must reuse the real value.
+        sort_order: id * 10,
+        notes: null,
+        pain_scale: null,
+        created_at: 'x',
+      }))
+      return wk
+    }
+
+    function mockInsertResult(result: { data: unknown; error: { message: string } | null }) {
+      mockWeInsert.mockReturnValue({
+        select: () => ({ single: () => Promise.resolve(result) }),
+      })
+    }
+
+    it('puts the new exercise at the old position and deletes the old row', async () => {
+      mockInsertResult({
+        data: {
+          id: 4,
+          workout_id: 5,
+          exercise_id: 9,
+          sort_order: 20,
+          notes: null,
+          pain_scale: null,
+          created_at: 'x',
+        },
+        error: null,
+      })
+      mockWeDeleteEq.mockResolvedValue({ error: null })
+
+      const { workoutExercises, replaceExerciseInWorkout } = setup()
+      const row = await replaceExerciseInWorkout(2, 9)
+
+      expect(mockWeInsert).toHaveBeenCalledWith({ workout_id: 5, exercise_id: 9, sort_order: 20 })
+      expect(mockWeDeleteEq).toHaveBeenCalledWith('id', 2)
+      expect(row?.exercise?.name).toBe('Squat')
+      expect(workoutExercises.value.map((we) => we.id)).toEqual([1, 4, 3])
+    })
+
+    it('leaves the session untouched when the insert fails', async () => {
+      mockInsertResult({ data: null, error: { message: 'nope' } })
+
+      const { workoutExercises, error: err, replaceExerciseInWorkout } = setup()
+      const row = await replaceExerciseInWorkout(2, 9)
+
+      expect(row).toBeNull()
+      expect(err.value).toBe('nope')
+      expect(mockWeDeleteEq).not.toHaveBeenCalled()
+      expect(workoutExercises.value.map((we) => we.id)).toEqual([1, 2, 3])
+    })
   })
 
   it('deleteWorkout clears the active workout when it is the one deleted', async () => {

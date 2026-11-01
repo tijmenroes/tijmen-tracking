@@ -38,6 +38,7 @@
           :best-set="bestSetByExercise.get(we.exercise_id) ?? null"
           :on-update-extra="updateWorkoutExercise"
           @remove="handleRemoveExercise"
+          @replace="startReplacing"
           @logged-sets-change="(hasLogged) => onLoggedSetsChange(we.id, hasLogged)"
           @detail="router.push(`/exercises/${we.exercise_id}/detail`)"
           @reorder="startReordering"
@@ -108,6 +109,7 @@
       :exercises="exercises"
       :tags="tags"
       :loading="exercisesLoading"
+      :mode="replacingId != null ? 'replace' : 'add'"
       @confirm="handleConfirmExercises"
     />
 
@@ -160,6 +162,7 @@ const {
   updateWorkout,
   addExerciseToWorkout,
   removeExerciseFromWorkout,
+  replaceExerciseInWorkout,
   reorderWorkoutExercises,
   updateWorkoutExercise,
   saveWorkout,
@@ -174,6 +177,8 @@ const { fetchTags } = tagsStore
 const { createTemplateFromWorkout } = useTemplatesStore()
 
 const showPicker = ref(false)
+/** workout_exercise the open picker will replace; null when it adds instead. */
+const replacingId = ref<number | null>(null)
 const showEditModal = ref(false)
 const showDeleteConfirm = ref(false)
 const saving = ref(false)
@@ -237,14 +242,29 @@ onMounted(async () => {
   }
 })
 
+function startReplacing(id: number) {
+  replacingId.value = id
+  showPicker.value = true
+}
+
 async function handleConfirmExercises(selected: Exercise[]) {
   showPicker.value = false
-  for (const ex of selected) {
-    await addExerciseToWorkout(ex.id)
+  const replaceId = replacingId.value
+  replacingId.value = null
+  if (replaceId != null) {
+    const replacement = selected[0]
+    const current = workoutExercises.value.find((we) => we.id === replaceId)
+    if (!replacement || replacement.id === current?.exercise_id) return
+    if (!(await replaceExerciseInWorkout(replaceId, replacement.id))) return
+    delete loggedSetsByExercise.value[replaceId]
+  } else {
+    for (const ex of selected) {
+      await addExerciseToWorkout(ex.id)
+    }
   }
   // Make sure newly added exercises aren't hidden behind the progressive reveal.
   visibleCount.value = workoutExercises.value.length
-  // Refresh session refs so newly added exercises get a best set + prefill too.
+  // Refresh session refs so new exercises get a best set + prefill too.
   if (workout.value) {
     fetchPreviousSetsForExercises(
       workoutExercises.value.map((we) => we.exercise_id),

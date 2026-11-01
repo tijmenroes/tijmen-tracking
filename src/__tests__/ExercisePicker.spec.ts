@@ -18,7 +18,7 @@ const exercises: Exercise[] = [
   { id: 13, name: 'Romanian Deadlift', type: 'strength', notes: null, aliases: ['RDL'], created_by: null, created_at: 'x', tags: [] },
 ]
 
-function mountPicker(exerciseList = exercises) {
+function mountPicker(exerciseList = exercises, mode?: 'add' | 'replace') {
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useExercisesStore()
@@ -30,7 +30,7 @@ function mountPicker(exerciseList = exercises) {
   ])
   vi.spyOn(store, 'fetchUsageCounts').mockResolvedValue(undefined)
   return mount(ExercisePicker, {
-    props: { exercises: exerciseList, tags, loading: false },
+    props: { exercises: exerciseList, tags, loading: false, mode },
     global: { plugins: [pinia] },
   })
 }
@@ -137,5 +137,36 @@ describe('ExercisePicker multi-select', () => {
     await row.trigger('click')
     await row.trigger('click')
     expect(wrapper.find('.picker-sheet__confirm').text()).toBe('Toevoegen')
+  })
+})
+
+describe('ExercisePicker replace mode', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function item(wrapper: ReturnType<typeof mountPicker>, name: string) {
+    return wrapper.findAll('.picker-list__item').find((i) => i.text().includes(name))!
+  }
+
+  it('shows replace copy', () => {
+    const wrapper = mountPicker(exercises, 'replace')
+    expect(wrapper.find('.picker-sheet__title').text()).toBe('Oefening vervangen')
+    expect(wrapper.find('.picker-sheet__confirm').text()).toBe('Vervangen')
+  })
+
+  it('keeps only the last tapped exercise selected', async () => {
+    const wrapper = mountPicker(exercises, 'replace')
+    await item(wrapper, 'Curl').trigger('click')
+    await item(wrapper, 'Row').trigger('click')
+    await wrapper.find('.picker-sheet__confirm').trigger('click')
+    await vi.advanceTimersByTimeAsync(520)
+
+    const emitted = wrapper.emitted('confirm')?.[0]?.[0] as Exercise[]
+    expect(emitted.map((e) => e.name)).toEqual(['Row'])
   })
 })

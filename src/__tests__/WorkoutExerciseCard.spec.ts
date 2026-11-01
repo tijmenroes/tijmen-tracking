@@ -126,3 +126,72 @@ describe('WorkoutExerciseCard set prefill', () => {
     expect(values).toEqual(['80', '10', '80', '8'])
   })
 })
+
+describe('WorkoutExerciseCard options menu', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    calls.length = 0
+  })
+
+  function mountWithSets(initialSets: ExerciseSet[]) {
+    return mount(WorkoutExerciseCard, {
+      props: {
+        workoutExercise,
+        initialSets,
+        previousSets: [],
+        onUpdateExtra: vi.fn<() => Promise<void>>(),
+      },
+    })
+  }
+
+  async function chooseMenuItem(wrapper: ReturnType<typeof mountWithSets>, label: string) {
+    await wrapper.find('.we-card__menu-btn').trigger('click')
+    const item = wrapper.findAll('.we-card__menu-item').find((i) => i.text() === label)!
+    await item.trigger('click')
+  }
+
+  it('emits replace straight away when nothing is logged yet', async () => {
+    const wrapper = mountWithSets([set({ id: 10 })])
+    await flushPromises()
+
+    await chooseMenuItem(wrapper, 'Oefening vervangen')
+
+    expect(wrapper.emitted('replace')).toEqual([[20]])
+    expect(wrapper.find('.we-card__menu').exists()).toBe(false)
+  })
+
+  it('asks for confirmation before replacing an exercise with logged sets', async () => {
+    const wrapper = mountWithSets([set({ id: 10, weight_kg: 80, reps: 10 })])
+    await flushPromises()
+
+    await chooseMenuItem(wrapper, 'Oefening vervangen')
+    expect(wrapper.emitted('replace')).toBeUndefined()
+    expect(wrapper.find('.modal__title').text()).toBe('Oefening vervangen')
+
+    await wrapper.find('.confirm__btn--danger').trigger('click')
+    expect(wrapper.emitted('replace')).toEqual([[20]])
+    expect(wrapper.find('.modal').exists()).toBe(false)
+  })
+
+  it('emits remove from the menu', async () => {
+    const wrapper = mountWithSets([set({ id: 10 })])
+    await flushPromises()
+
+    await chooseMenuItem(wrapper, 'Oefening verwijderen')
+
+    expect(wrapper.emitted('remove')).toEqual([[20]])
+    expect(wrapper.emitted('replace')).toBeUndefined()
+  })
+
+  it('closes the menu on an outside tap without doing anything', async () => {
+    const wrapper = mountWithSets([set({ id: 10 })])
+    await flushPromises()
+
+    await wrapper.find('.we-card__menu-btn').trigger('click')
+    await wrapper.find('.we-card__menu-backdrop').trigger('click')
+
+    expect(wrapper.find('.we-card__menu').exists()).toBe(false)
+    expect(wrapper.emitted('remove')).toBeUndefined()
+    expect(wrapper.emitted('replace')).toBeUndefined()
+  })
+})
