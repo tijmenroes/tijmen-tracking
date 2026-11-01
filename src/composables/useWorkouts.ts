@@ -8,6 +8,7 @@ import {
   splitPhantomEmptySets,
   type ExerciseSessionRefRow,
 } from '@/utils/sessionRefs'
+import { todayLocalIso } from '@/utils/dates'
 import type { ExerciseSet, Workout, WorkoutExercise, WorkoutSummary } from '@/types/fitness'
 
 const activeWorkout = ref<WorkoutSummary | null>(null)
@@ -64,11 +65,6 @@ export function useWorkouts() {
     )
   }
 
-  function todayIso(): string {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-
   /**
    * Start a new workout session for today and set it as the active workout.
    * Multiple sessions per day are allowed (see migration_004).
@@ -90,7 +86,7 @@ export function useWorkouts() {
       template_id?: number
     } = {
       user_id: userId,
-      date: todayIso(),
+      date: todayLocalIso(),
       name: opts.name ?? null,
     }
     if (opts.templateId) insertPayload.template_id = opts.templateId

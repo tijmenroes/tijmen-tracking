@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
+import { todayLocalIso } from '@/utils/dates'
 
 export interface Weight {
   id: number
@@ -33,7 +34,7 @@ export function useWeights() {
       error.value = 'Not authenticated'
       return
     }
-    const payload: Record<string, unknown> = { weight, is_kg: true, user_id: user.id, date: date ?? new Date().toISOString().slice(0, 10) }
+    const payload: Record<string, unknown> = { weight, is_kg: true, user_id: user.id, date: date ?? todayLocalIso() }
     const { data, error: err } = await supabase
       .from('Weight')
       .insert(payload)

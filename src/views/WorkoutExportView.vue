@@ -103,20 +103,17 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAiExport, copyJson, downloadJson, exportFilename } from '@/composables/useAiExport'
+import { toLocalIso, todayLocalIso } from '@/utils/dates'
 
 const PREVIEW_LIMIT = 20000
 
 const router = useRouter()
 const { payload, generating, error, generate } = useAiExport()
 
-function toIso(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function monthsAgo(months: number): string {
   const d = new Date()
   d.setMonth(d.getMonth() - months)
-  return toIso(d)
+  return toLocalIso(d)
 }
 
 const presets = [
@@ -127,7 +124,7 @@ const presets = [
 ]
 
 const from = ref(monthsAgo(3))
-const to = ref(toIso(new Date()))
+const to = ref(todayLocalIso())
 const userNotes = ref('')
 const showPreview = ref(true)
 const copyState = ref<'idle' | 'copied' | 'failed'>('idle')
@@ -145,7 +142,7 @@ const sizeLabel = computed(() => {
 
 function applyPreset(months: number) {
   from.value = monthsAgo(months)
-  to.value = toIso(new Date())
+  to.value = todayLocalIso()
 }
 
 async function handleGenerate() {

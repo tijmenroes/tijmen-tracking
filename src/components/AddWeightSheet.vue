@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { todayLocalIso } from '@/utils/dates'
 
 const props = defineProps<{
   open: boolean
@@ -55,7 +56,7 @@ const emit = defineEmits<{
 }>()
 
 const weightStr = ref('')
-const selectedDate = ref(todayString())
+const selectedDate = ref(todayLocalIso())
 const inputRef = ref<HTMLInputElement | null>(null)
 
 watch(
@@ -63,7 +64,7 @@ watch(
   (val) => {
     if (val) {
       weightStr.value = props.lastWeight !== null ? props.lastWeight.toFixed(1) : ''
-      selectedDate.value = todayString()
+      selectedDate.value = todayLocalIso()
       setTimeout(() => inputRef.value?.focus(), 250)
     }
   },
@@ -78,10 +79,6 @@ function handleSave() {
   const n = parseFloat(weightStr.value.replace(',', '.'))
   if (isNaN(n) || n <= 20 || n >= 300) return
   emit('save', n, selectedDate.value)
-}
-
-function todayString() {
-  return new Date().toISOString().slice(0, 10)
 }
 </script>
 

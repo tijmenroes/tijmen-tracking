@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { todayLocalIso } from '@/utils/dates'
 
 const props = defineProps<{
   lastWeight: number | null
@@ -35,7 +36,7 @@ const emit = defineEmits<{
 }>()
 
 const weightStr = ref('')
-const selectedDate = ref(todayString())
+const selectedDate = ref(todayLocalIso())
 
 watch(
   () => props.lastWeight,
@@ -55,10 +56,6 @@ const isValid = computed(() => parsed.value !== null && parsed.value > 20 && par
 function handleSubmit() {
   if (!isValid.value || parsed.value === null) return
   emit('save', parsed.value, selectedDate.value)
-}
-
-function todayString() {
-  return new Date().toISOString().slice(0, 10)
 }
 </script>
 
