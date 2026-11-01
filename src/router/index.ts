@@ -84,6 +84,30 @@ const router = createRouter({
       meta: { requiresAuth: true, navDepth: 2 },
     },
     {
+      path: '/habits',
+      name: 'habits',
+      component: () => import('@/views/HabitsView.vue'),
+      meta: { requiresAuth: true, navDepth: 1 },
+    },
+    {
+      path: '/habits/new',
+      name: 'habit-new',
+      component: () => import('@/views/HabitFormView.vue'),
+      meta: { requiresAuth: true, navDepth: 2 },
+    },
+    {
+      path: '/habits/:id',
+      name: 'habit-detail',
+      component: () => import('@/views/HabitDetailView.vue'),
+      meta: { requiresAuth: true, navDepth: 2 },
+    },
+    {
+      path: '/habits/:id/edit',
+      name: 'habit-edit',
+      component: () => import('@/views/HabitFormView.vue'),
+      meta: { requiresAuth: true, navDepth: 3 },
+    },
+    {
       path: '/profile',
       name: 'profile',
       component: () => import('@/views/ProfileView.vue'),

@@ -36,6 +36,11 @@
         <div class="metric-card__label">Oefeningen beheren</div>
         <div class="metric-card__chevron">›</div>
       </button>
+      <button class="metric-card" @click="router.push('/habits')">
+        <div class="metric-card__icon">✅</div>
+        <div class="metric-card__label">Habits</div>
+        <div class="metric-card__chevron">›</div>
+      </button>
     </div>
 
     <section class="newsboard" aria-labelledby="newsboard-title">
