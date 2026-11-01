@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import WorkoutExerciseCard from '@/components/WorkoutExerciseCard.vue'
 import type { ExerciseSet, WorkoutExercise } from '@/types/fitness'
 
@@ -9,6 +9,10 @@ const mockInsertSingle = vi.fn()
 /** Bulk insert (the previous-session prefill). */
 const mockInsertSelect = vi.fn()
 const calls: string[] = []
+/** Rows as the database has them, so an update can answer with the full row. */
+const rows = new Map<number, ExerciseSet>()
+/** Set updates in call order, as [id, payload]. */
+const updates: Array<[number, Record<string, unknown>]> = []
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -19,6 +23,18 @@ vi.mock('@/lib/supabase', () => ({
           calls.push(`delete:${col}`)
           return mockDeleteEq(col, val)
         },
+      })),
+      update: vi.fn<(payload: Record<string, unknown>) => unknown>((payload) => ({
+        eq: (_col: string, id: number) => ({
+          select: () => ({
+            single: () => {
+              updates.push([id, payload])
+              const row = { ...rows.get(id)!, ...payload }
+              rows.set(id, row)
+              return Promise.resolve({ data: row, error: null })
+            },
+          }),
+        }),
       })),
       insert: vi.fn((payload: unknown) => {
         calls.push(Array.isArray(payload) ? 'insert:bulk' : 'insert:single')
@@ -124,5 +140,104 @@ describe('WorkoutExerciseCard set prefill', () => {
       .findAll('.we-card__input')
       .map((i) => (i.element as HTMLInputElement).value)
     expect(values).toEqual(['80', '10', '80', '8'])
+  })
+})
+
+/** A set that also exists in the mocked database. */
+function row(partial: Partial<ExerciseSet>): ExerciseSet {
+  const r = set(partial)
+  rows.set(r.id, r)
+  return r
+}
+
+function inputValues(wrapper: VueWrapper) {
+  return wrapper.findAll('.we-card__input').map((i) => (i.element as HTMLInputElement).value)
+}
+
+/** Inputs per row are [kg, reps]; `index` counts across all rows. */
+async function changeInput(wrapper: VueWrapper, index: number, value: string) {
+  const input = wrapper.findAll('.we-card__input')[index]!
+  ;(input.element as HTMLInputElement).value = value
+  await input.trigger('change')
+  await flushPromises()
+}
+
+describe('WorkoutExerciseCard first-set weight', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    updates.length = 0
+    rows.clear()
+  })
+
+  async function mountWithSets(weights: number[], { carryFirstSetWeight = true } = {}) {
+    const wrapper = mount(WorkoutExerciseCard, {
+      props: {
+        workoutExercise,
+        initialSets: weights.map((weight_kg, i) =>
+          row({ id: 11 + i, set_number: i + 1, weight_kg, reps: 10 }),
+        ),
+        previousSets: [],
+        carryFirstSetWeight,
+        onUpdateExtra: vi.fn<() => Promise<void>>(),
+      },
+    })
+    await flushPromises()
+    return wrapper
+  }
+
+  function weights(wrapper: VueWrapper) {
+    return inputValues(wrapper).filter((_, i) => i % 2 === 0)
+  }
+
+  it('carries a new first-set weight over to the sets that had the same weight', async () => {
+    const wrapper = await mountWithSets([50, 50, 50])
+
+    await changeInput(wrapper, 0, '55')
+    expect(updates).toEqual([
+      [11, { weight_kg: 55 }],
+      [12, { weight_kg: 55 }],
+      [13, { weight_kg: 55 }],
+    ])
+    expect(inputValues(wrapper)).toEqual(['55', '10', '55', '10', '55', '10'])
+
+    await changeInput(wrapper, 0, '57,5')
+    expect(weights(wrapper)).toEqual(['57.5', '57.5', '57.5'])
+  })
+
+  it('leaves sets with a weight of their own alone', async () => {
+    const pyramid = await mountWithSets([40, 45, 50])
+    await changeInput(pyramid, 0, '42,5')
+    expect(weights(pyramid)).toEqual(['42.5', '45', '50'])
+
+    const dropSet = await mountWithSets([50, 50, 45])
+    await changeInput(dropSet, 0, '55')
+    expect(weights(dropSet)).toEqual(['55', '55', '45'])
+  })
+
+  it('only carries over from the first set', async () => {
+    const wrapper = await mountWithSets([50, 50, 50])
+
+    await changeInput(wrapper, 2, '55')
+
+    expect(updates).toEqual([[12, { weight_kg: 55 }]])
+    expect(weights(wrapper)).toEqual(['50', '55', '50'])
+  })
+
+  it('does not spread a cleared first-set weight', async () => {
+    const wrapper = await mountWithSets([50, 50])
+
+    await changeInput(wrapper, 0, '')
+
+    expect(updates).toEqual([[11, { weight_kg: null }]])
+    expect(weights(wrapper)).toEqual(['', '50'])
+  })
+
+  it('never rewrites the sets of a saved workout', async () => {
+    const wrapper = await mountWithSets([50, 50, 50], { carryFirstSetWeight: false })
+
+    await changeInput(wrapper, 0, '55')
+
+    expect(updates).toEqual([[11, { weight_kg: 55 }]])
+    expect(weights(wrapper)).toEqual(['55', '50', '50'])
   })
 })

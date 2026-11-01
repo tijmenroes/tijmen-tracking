@@ -42,6 +42,20 @@ export function hasLoggedSetMetrics(
   )
 }
 
+/**
+ * Sets after the first that move along when the first set's weight changes:
+ * the ones that still had its old weight. Sets with a weight of their own (a
+ * pyramid, a drop set, one you changed yourself) keep it.
+ */
+export function setsFollowingFirstWeight(
+  sets: ExerciseSet[],
+  oldWeight: number | null,
+  newWeight: number | null,
+): ExerciseSet[] {
+  if (oldWeight == null || newWeight == null || oldWeight === newWeight) return []
+  return sets.slice(1).filter((s) => s.weight_kg === oldWeight)
+}
+
 /** Auto-prefill last-session sets only when current inputs are still empty. */
 export function shouldPrefillPreviousSets(
   currentSets: Array<Pick<ExerciseSet, 'weight_kg' | 'reps' | 'duration_seconds' | 'distance_km'>>,

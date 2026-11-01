@@ -157,6 +157,7 @@ import {
   shouldPrefillPreviousSets,
   takeLastSets,
   hasLoggedSetMetrics,
+  setsFollowingFirstWeight,
   MAX_PREVIOUS_SETS,
 } from '@/utils/sessionRefs'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -170,6 +171,8 @@ const props = defineProps<{
   previousSets?: ExerciseSet[]
   /** All-time heaviest set for the "Beste" reference; may arrive after mount. */
   bestSet?: ExerciseSet | null
+  /** Carry a new first-set weight over to the sets below it. Off for saved workouts. */
+  carryFirstSetWeight?: boolean
   onUpdateExtra: (
     id: number,
     payload: { notes?: string | null; pain_scale?: number | null },
@@ -337,8 +340,14 @@ function parseSetValue(raw: string, field: string): number | null {
 function updateSet(id: number, field: string, event: Event) {
   const input = event.target as HTMLInputElement
   const num = parseSetValue(input.value, field)
+  const first = sets.value[0]
+  const followers =
+    props.carryFirstSetWeight && field === 'weight_kg' && first?.id === id
+      ? setsFollowingFirstWeight(sets.value, first.weight_kg, num)
+      : []
   updateSetData(id, { [field]: num })
   input.value = num == null ? '' : String(num)
+  for (const s of followers) updateSetData(s.id, { weight_kg: num })
 }
 
 async function setPainScale(n: number | null) {

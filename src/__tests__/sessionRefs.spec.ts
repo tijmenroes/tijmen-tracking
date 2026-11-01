@@ -5,6 +5,7 @@ import {
   takeLastSets,
   pickHeaviestSet,
   shouldPrefillPreviousSets,
+  setsFollowingFirstWeight,
   mapSessionRefRows,
   splitPhantomEmptySets,
 } from '@/utils/sessionRefs'
@@ -112,6 +113,29 @@ describe('shouldPrefillPreviousSets', () => {
   it('does not prefill twice or without previous sets', () => {
     expect(shouldPrefillPreviousSets([set({})], [set({ weight_kg: 80 })], true)).toBe(false)
     expect(shouldPrefillPreviousSets([set({})], [], false)).toBe(false)
+  })
+})
+
+describe('setsFollowingFirstWeight', () => {
+  const sets = [
+    set({ id: 11, weight_kg: 50 }),
+    set({ id: 12, weight_kg: 50 }),
+    set({ id: 13, weight_kg: 47.5 }),
+    set({ id: 14, weight_kg: 50 }),
+  ]
+
+  it('returns the sets after the first that had its old weight', () => {
+    expect(setsFollowingFirstWeight(sets, 50, 55).map((s) => s.id)).toEqual([12, 14])
+  })
+
+  it('returns nothing for an unchanged or cleared weight', () => {
+    expect(setsFollowingFirstWeight(sets, 50, 50)).toEqual([])
+    expect(setsFollowingFirstWeight(sets, 50, null)).toEqual([])
+  })
+
+  it('does not fill in empty sets when the first set had no weight yet', () => {
+    const empty = [set({ id: 11 }), set({ id: 12 })]
+    expect(setsFollowingFirstWeight(empty, null, 50)).toEqual([])
   })
 })
 

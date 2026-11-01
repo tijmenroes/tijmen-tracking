@@ -36,6 +36,7 @@
           :initial-sets="workoutExerciseSets.get(we.id) ?? []"
           :previous-sets="previousSetsByExercise.get(we.exercise_id) ?? []"
           :best-set="bestSetByExercise.get(we.exercise_id) ?? null"
+          :carry-first-set-weight="workout?.status === 'active'"
           :on-update-extra="updateWorkoutExercise"
           @remove="handleRemoveExercise"
           @logged-sets-change="(hasLogged) => onLoggedSetsChange(we.id, hasLogged)"
