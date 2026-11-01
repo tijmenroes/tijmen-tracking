@@ -21,6 +21,7 @@ export default defineConfig({
         name: 'TT',
         short_name: 'TT',
         description: 'Fitness tracker',
+        lang: 'nl',
         start_url: '/',
         display: 'standalone',
         background_color: '#F4F2F8',

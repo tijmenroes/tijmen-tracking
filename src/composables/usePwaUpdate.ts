@@ -10,8 +10,26 @@ if (import.meta.env.PROD) {
     onNeedRefresh() {
       pwaNeedRefresh.value = true
     },
+    onRegisteredSW(_swUrl, registration) {
+      if (registration) checkForUpdatesOnResume(registration)
+    },
   })
   void dropStaleSupabaseCache()
+}
+
+/**
+ * A home screen app is resumed from memory rather than reloaded, and the browser
+ * only looks for a new service worker on navigation — so an old build could stay
+ * open for days. Check again whenever the app comes back to the foreground.
+ */
+export function checkForUpdatesOnResume(registration: ServiceWorkerRegistration) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    if (registration.installing || !navigator.onLine) return
+    registration.update().catch(() => {
+      // Offline or a flaky network — the next resume tries again.
+    })
+  })
 }
 
 /**
