@@ -25,9 +25,39 @@
         </div>
         <p v-if="templateNote" class="we-card__subtitle">{{ templateNote }}</p>
       </div>
-      <button class="we-card__remove" title="Verwijder oefening" @click="handleRemoveClick">
-        ×
-      </button>
+      <div class="we-card__menu-wrap">
+        <button
+          class="we-card__menu-btn"
+          type="button"
+          aria-label="Opties"
+          aria-haspopup="menu"
+          :aria-expanded="menuOpen"
+          @click="menuOpen = !menuOpen"
+        >
+          ⋯
+        </button>
+        <template v-if="menuOpen">
+          <div class="we-card__menu-backdrop" @click="menuOpen = false" />
+          <div class="we-card__menu" role="menu">
+            <button
+              class="we-card__menu-item"
+              type="button"
+              role="menuitem"
+              @click="handleMenuAction('replace')"
+            >
+              Oefening vervangen
+            </button>
+            <button
+              class="we-card__menu-item we-card__menu-item--danger"
+              type="button"
+              role="menuitem"
+              @click="handleMenuAction('remove')"
+            >
+              Oefening verwijderen
+            </button>
+          </div>
+        </template>
+      </div>
     </div>
 
     <!-- All-time heaviest set (strength only) -->
@@ -138,13 +168,13 @@
     </div>
 
     <ConfirmModal
-      v-if="showRemoveConfirm"
-      title="Oefening verwijderen"
-      :message="`Weet je zeker dat je “${workoutExercise.exercise?.name}” uit deze workout wilt verwijderen? Gelogde sets gaan verloren.`"
-      confirm-label="Verwijderen"
+      v-if="pendingAction"
+      :title="pendingAction === 'replace' ? 'Oefening vervangen' : 'Oefening verwijderen'"
+      :message="confirmMessage"
+      :confirm-label="pendingAction === 'replace' ? 'Vervangen' : 'Verwijderen'"
       danger
-      @confirm="confirmRemove"
-      @cancel="showRemoveConfirm = false"
+      @confirm="confirmPendingAction"
+      @cancel="pendingAction = null"
     />
   </div>
 </template>
@@ -178,6 +208,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'remove', id: number): void
+  (e: 'replace', id: number): void
   (e: 'detail', we: WorkoutExercise): void
   (e: 'logged-sets-change', hasLogged: boolean): void
   (e: 'reorder'): void
@@ -190,7 +221,7 @@ const bestSet = computed(() => props.bestSet ?? null)
 
 const accordionOpen = ref(false)
 const didPrefill = ref(false)
-const showRemoveConfirm = ref(false)
+const menuOpen = ref(false)
 const localNotes = ref<string>(props.workoutExercise.notes ?? '')
 const localPainScale = ref<number | null>(props.workoutExercise.pain_scale ?? null)
 
@@ -263,17 +294,36 @@ watch(
   { deep: true, immediate: true },
 )
 
-function handleRemoveClick() {
+type CardAction = 'replace' | 'remove'
+
+/** Action waiting for confirmation because this card already holds logged data. */
+const pendingAction = ref<CardAction | null>(null)
+
+const confirmMessage = computed(() => {
+  const name = props.workoutExercise.exercise?.name
+  return pendingAction.value === 'replace'
+    ? `Weet je zeker dat je “${name}” wilt vervangen? Gelogde sets gaan verloren.`
+    : `Weet je zeker dat je “${name}” uit deze workout wilt verwijderen? Gelogde sets gaan verloren.`
+})
+
+function handleMenuAction(action: CardAction) {
+  menuOpen.value = false
   if (hasLoggedData()) {
-    showRemoveConfirm.value = true
+    pendingAction.value = action
   } else {
-    emit('remove', props.workoutExercise.id)
+    emitAction(action)
   }
 }
 
-function confirmRemove() {
-  showRemoveConfirm.value = false
-  emit('remove', props.workoutExercise.id)
+function confirmPendingAction() {
+  const action = pendingAction.value
+  pendingAction.value = null
+  if (action) emitAction(action)
+}
+
+function emitAction(action: CardAction) {
+  if (action === 'replace') emit('replace', props.workoutExercise.id)
+  else emit('remove', props.workoutExercise.id)
 }
 
 // Press-and-hold the sort handle to switch the session into reorder mode. A
@@ -436,20 +486,71 @@ async function saveExtra() {
   color: var(--color-down);
 }
 
-.we-card__remove {
+.we-card__menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.we-card__menu-btn {
   background: var(--color-chip);
   border: none;
   border-radius: 50%;
   width: 26px;
   height: 26px;
+  padding: 0;
   font-size: 17px;
-  color: var(--color-text-3);
+  line-height: 1;
+  color: var(--color-text-2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  margin-left: 8px;
+}
+
+/* Invisible full-screen layer: a tap anywhere outside the menu closes it. */
+.we-card__menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.we-card__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 41;
+  min-width: 200px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-card);
+  border-radius: 14px;
+  box-shadow:
+    0 10px 30px rgb(var(--shadow-rgb) / 0.18),
+    0 0 0 0.5px var(--color-hairline);
+}
+
+.we-card__menu-item {
+  background: none;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 12px;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.we-card__menu-item:hover,
+.we-card__menu-item:active {
+  background: var(--color-chip);
+}
+
+.we-card__menu-item--danger {
+  color: var(--color-up);
 }
 
 /* Previous sets */
